@@ -1,8 +1,6 @@
 package com.riyaz.rssclipboard
 
 import android.Manifest
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -20,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -114,25 +113,26 @@ fun ClipboardScreen(vm: MainViewModel = viewModel(), onOpenSettings: () -> Unit)
 
 @Composable
 private fun FloatingSettingsDialog(onDismiss: () -> Unit, onEnable: () -> Unit, onDisable: () -> Unit) {
-    var enabled by remember { mutableStateOf(FloatingPrefs.enabled(LocalContext.current)) }
-    var bubble by remember { mutableStateOf(FloatingPrefs.showBubble(LocalContext.current)) }
-    var openOnCopy by remember { mutableStateOf(FloatingPrefs.openOnCopy(LocalContext.current)) }
-    var closeAfterCopy by remember { mutableStateOf(FloatingPrefs.closeAfterCopy(LocalContext.current)) }
-    var autoHide by remember { mutableStateOf(FloatingPrefs.autoHide(LocalContext.current)) }
-    var size by remember { mutableStateOf(FloatingPrefs.size(LocalContext.current)) }
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(FloatingPrefs.enabled(context)) }
+    var bubble by remember { mutableStateOf(FloatingPrefs.showBubble(context)) }
+    var openOnCopy by remember { mutableStateOf(FloatingPrefs.openOnCopy(context)) }
+    var closeAfterCopy by remember { mutableStateOf(FloatingPrefs.closeAfterCopy(context)) }
+    var autoHide by remember { mutableStateOf(FloatingPrefs.autoHide(context)) }
+    var size by remember { mutableStateOf(FloatingPrefs.size(context)) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Floating clipboard") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Runs as a foreground service while enabled.", style = MaterialTheme.typography.bodySmall)
                 SettingSwitch("Floating clipboard", enabled) { enabled = it; if (it) onEnable() else onDisable() }
-                SettingSwitch("Show floating button", bubble) { bubble = it; FloatingPrefs.setShowBubble(LocalContext.current, it) }
-                SettingSwitch("Open list when something is copied", openOnCopy) { openOnCopy = it; FloatingPrefs.setOpenOnCopy(LocalContext.current, it) }
-                SettingSwitch("Close after copying an item", closeAfterCopy) { closeAfterCopy = it; FloatingPrefs.setCloseAfterCopy(LocalContext.current, it) }
-                SettingSwitch("Auto-hide floating button (15 sec)", autoHide) { autoHide = it; FloatingPrefs.setAutoHide(LocalContext.current, it) }
+                SettingSwitch("Show floating button", bubble) { bubble = it; FloatingPrefs.setShowBubble(context, it) }
+                SettingSwitch("Open list when something is copied", openOnCopy) { openOnCopy = it; FloatingPrefs.setOpenOnCopy(context, it) }
+                SettingSwitch("Close after copying an item", closeAfterCopy) { closeAfterCopy = it; FloatingPrefs.setCloseAfterCopy(context, it) }
+                SettingSwitch("Auto-hide floating button (15 sec)", autoHide) { autoHide = it; FloatingPrefs.setAutoHide(context, it) }
                 Text("Dialog size", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("small", "medium", "large").forEach { value ->
-                        FilterChip(selected = size == value, onClick = { size = value; FloatingPrefs.setSize(LocalContext.current, value) }, label = { Text(value.replaceFirstChar { it.uppercase() }) })
+                        FilterChip(selected = size == value, onClick = { size = value; FloatingPrefs.setSize(context, value) }, label = { Text(value.replaceFirstChar { it.uppercase() }) })
                     }
                 }
             }
