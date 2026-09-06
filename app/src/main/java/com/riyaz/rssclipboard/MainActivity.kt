@@ -24,27 +24,46 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.riyaz.rssclipboard.data.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { ClipboardScreen(onOpenSettings = ::openFloatingSettings) } }
+        setContent { MaterialTheme { ClipboardScreen(onOpenSettings = ::showFloatingSettings) } }
     }
 
-    private fun openFloatingSettings() {
-        if (!Settings.canDrawOverlays(this)) {
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            return
-        }
+    override fun onResume() {
+        super.onResume()
+        if (FloatingPrefs.enabled(this) && Settings.canDrawOverlays(this)) startFloatingService()
+    }
+
+    private fun startFloatingService() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         startForegroundService(Intent(this, FloatingClipboardService::class.java))
+    }
+
+    private fun showFloatingSettings() {
+        setContent {
+            MaterialTheme {
+                ClipboardScreen(onOpenSettings = ::showFloatingSettings)
+                FloatingSettingsDialog(
+                    onDismiss = { setContent { MaterialTheme { ClipboardScreen(onOpenSettings = ::showFloatingSettings) } } },
+                    onEnable = {
+                        FloatingPrefs.setEnabled(this, true)
+                        if (!Settings.canDrawOverlays(this)) {
+                            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                        } else startFloatingService()
+                    },
+                    onDisable = {
+                        FloatingPrefs.setEnabled(this, false)
+                        stopService(Intent(this, FloatingClipboardService::class.java))
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -64,11 +83,7 @@ fun ClipboardScreen(vm: MainViewModel = viewModel(), onOpenSettings: () -> Unit)
         })
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(horizontal = 12.dp)) {
-            OutlinedTextField(
-                value = query, onValueChange = vm::setQuery,
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                label = { Text("Search clipboard") }
-            )
+            OutlinedTextField(value = query, onValueChange = vm::setQuery, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search clipboard") })
             Spacer(Modifier.height(8.dp))
             FilterRow(vm)
             Spacer(Modifier.height(8.dp))
@@ -77,29 +92,58 @@ fun ClipboardScreen(vm: MainViewModel = viewModel(), onOpenSettings: () -> Unit)
                 itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
                     ClipboardCard(index + 1, item,
                         onCopy = { clipboard.setText(AnnotatedString(item.content)) },
-                        onPin = { vm.togglePin(item) },
-                        onDelete = { vm.delete(item) },
-                        onEdit = { editing = item })
+                        onPin = { vm.togglePin(item) }, onDelete = { vm.delete(item) }, onEdit = { editing = item })
                 }
             }
         }
     }
     if (showClear) AlertDialog(
-        onDismissRequest = { showClear = false },
-        title = { Text("Clear clipboard history?") },
+        onDismissRequest = { showClear = false }, title = { Text("Clear clipboard history?") },
         text = { Text("This removes all saved entries, including pinned items.") },
         confirmButton = { TextButton(onClick = { vm.clearAll(); showClear = false }) { Text("Clear") } },
         dismissButton = { TextButton(onClick = { showClear = false }) { Text("Cancel") } }
     )
     editing?.let { item ->
         var text by remember(item.id) { mutableStateOf(item.content) }
-        AlertDialog(
-            onDismissRequest = { editing = null },
-            title = { Text("Edit item") },
+        AlertDialog(onDismissRequest = { editing = null }, title = { Text("Edit item") },
             text = { OutlinedTextField(text, { text = it }, minLines = 3) },
             confirmButton = { TextButton(onClick = { vm.update(item, text); editing = null }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } }
-        )
+            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } })
+    }
+}
+
+@Composable
+private fun FloatingSettingsDialog(onDismiss: () -> Unit, onEnable: () -> Unit, onDisable: () -> Unit) {
+    var enabled by remember { mutableStateOf(FloatingPrefs.enabled(LocalContext.current)) }
+    var bubble by remember { mutableStateOf(FloatingPrefs.showBubble(LocalContext.current)) }
+    var openOnCopy by remember { mutableStateOf(FloatingPrefs.openOnCopy(LocalContext.current)) }
+    var closeAfterCopy by remember { mutableStateOf(FloatingPrefs.closeAfterCopy(LocalContext.current)) }
+    var autoHide by remember { mutableStateOf(FloatingPrefs.autoHide(LocalContext.current)) }
+    var size by remember { mutableStateOf(FloatingPrefs.size(LocalContext.current)) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Floating clipboard") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Runs as a foreground service while enabled.", style = MaterialTheme.typography.bodySmall)
+                SettingSwitch("Floating clipboard", enabled) { enabled = it; if (it) onEnable() else onDisable() }
+                SettingSwitch("Show floating button", bubble) { bubble = it; FloatingPrefs.setShowBubble(LocalContext.current, it) }
+                SettingSwitch("Open list when something is copied", openOnCopy) { openOnCopy = it; FloatingPrefs.setOpenOnCopy(LocalContext.current, it) }
+                SettingSwitch("Close after copying an item", closeAfterCopy) { closeAfterCopy = it; FloatingPrefs.setCloseAfterCopy(LocalContext.current, it) }
+                SettingSwitch("Auto-hide floating button (15 sec)", autoHide) { autoHide = it; FloatingPrefs.setAutoHide(LocalContext.current, it) }
+                Text("Dialog size", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("small", "medium", "large").forEach { value ->
+                        FilterChip(selected = size == value, onClick = { size = value; FloatingPrefs.setSize(LocalContext.current, value) }, label = { Text(value.replaceFirstChar { it.uppercase() }) })
+                    }
+                }
+            }
+        }, confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } })
+}
+
+@Composable
+private fun SettingSwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
