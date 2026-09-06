@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.first
 
 class FloatingClipboardService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var clipboard: ClipboardManager
     private lateinit var repository: ClipboardRepository
     private lateinit var windowManager: WindowManager
@@ -43,23 +44,37 @@ class FloatingClipboardService : Service() {
         startForeground(NOTIFICATION_ID, notification())
         listener = ClipboardManager.OnPrimaryClipChangedListener {
             val clip = clipboard.primaryClip ?: return@OnPrimaryClipChangedListener
-            val text = clip.getItemAt(0).coerceToText(this).toString()
-            if (text.isNotBlank()) scope.launch { repository.add(text) }
+            val text = clip.getItemAt(0).coerceToText(this).toString().trim()
+            if (text.isBlank()) return@OnPrimaryClipChangedListener
+            scope.launch {
+                repository.add(text)
+                repository.deleteExpired()
+                if (FloatingPrefs.openOnCopy(this@FloatingClipboardService)) {
+                    mainScope.launch { showDialog() }
+                }
+            }
         }
         clipboard.addPrimaryClipChangedListener(listener)
-        if (Settings.canDrawOverlays(this)) showBubble()
+        if (Settings.canDrawOverlays(this) && FloatingPrefs.showBubble(this)) showBubble()
     }
 
     private fun notification(): Notification {
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val open = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher)
             .setContentTitle("RSS Clipboard")
-            .setContentText("Clipboard monitor is active")
+            .setContentText("Floating clipboard is active")
             .setOngoing(true)
             .setContentIntent(open)
             .build()
     }
+
+    private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) {
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    } else WindowManager.LayoutParams.TYPE_PHONE
 
     private fun showBubble() {
         if (bubble != null || !Settings.canDrawOverlays(this)) return
@@ -73,46 +88,80 @@ class FloatingClipboardService : Service() {
         }
         bubble = view
         windowManager.addView(view, bubbleParams())
+        if (FloatingPrefs.autoHide(this)) {
+            mainScope.launch {
+                delay(AUTO_HIDE_MS)
+                if (bubble != null) hideBubble()
+            }
+        }
+    }
+
+    private fun hideBubble() {
+        bubble?.let { runCatching { windowManager.removeView(it) } }
+        bubble = null
     }
 
     private fun showDialog() {
-        if (dialog != null) return
+        if (dialog != null || !Settings.canDrawOverlays(this)) return
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24, 20, 24, 16)
             setBackgroundColor(0xFFFFFFFF.toInt())
         }
-        root.addView(TextView(this).apply { text = "RSS Clipboard"; textSize = 20f; setPadding(0, 0, 0, 12) })
+        root.addView(TextView(this).apply {
+            text = "RSS Clipboard"
+            textSize = 20f
+            setPadding(0, 0, 0, 12)
+        })
         val scroll = ScrollView(this)
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(list)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(TextView(this).apply {
-            text = "Close"; textSize = 16f; gravity = Gravity.CENTER; setPadding(12, 18, 12, 8)
+            text = "Close"
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setPadding(12, 18, 12, 8)
             setOnClickListener { hideDialog() }
         })
         dialog = root
         windowManager.addView(root, dialogParams())
         scope.launch {
+            repository.deleteExpired()
             val items = repository.items.first()
-            withContext(Dispatchers.Main) { populate(list, items) }
+            mainScope.launch { populate(list, items) }
         }
     }
 
     private fun populate(list: LinearLayout, items: List<ClipboardItem>) {
         list.removeAllViews()
         if (items.isEmpty()) {
-            list.addView(TextView(this).apply { text = "No saved clipboard items"; setPadding(0, 20, 0, 20) })
+            list.addView(TextView(this).apply {
+                text = "No saved clipboard items"
+                setPadding(0, 20, 0, 20)
+            })
             return
         }
-        items.take(50).forEach { item ->
-            list.addView(TextView(this).apply {
-                text = item.content; textSize = 16f; maxLines = 4; setPadding(8, 18, 8, 18)
+        items.take(50).forEachIndexed { index, item ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(8, 10, 8, 10)
                 setOnClickListener {
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("RSS Clipboard", item.content))
-                    hideDialog()
+                    if (FloatingPrefs.closeAfterCopy(this@FloatingClipboardService)) hideDialog()
                 }
+            }
+            row.addView(TextView(this).apply {
+                text = "#${index + 1}  ${item.type.name}${if (item.pinned) "  •  PINNED" else ""}"
+                textSize = 12f
             })
+            row.addView(TextView(this).apply {
+                text = item.content
+                textSize = 16f
+                maxLines = 4
+                setPadding(0, 4, 0, 0)
+            })
+            list.addView(row)
         }
     }
 
@@ -122,23 +171,45 @@ class FloatingClipboardService : Service() {
     }
 
     private fun bubbleParams() = WindowManager.LayoutParams(
-        WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-        if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT
-    ).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; x = 18 }
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        overlayType(),
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.END or Gravity.CENTER_VERTICAL
+        x = 18
+    }
 
     private fun dialogParams() = WindowManager.LayoutParams(
-        (resources.displayMetrics.widthPixels * 0.88f).toInt(), (resources.displayMetrics.heightPixels * 0.68f).toInt(),
-        if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-        WindowManager.LayoutParams.FLAG_DIM_BEHIND, PixelFormat.TRANSLUCENT
-    ).apply { gravity = Gravity.CENTER; dimAmount = 0.35f }
+        (resources.displayMetrics.widthPixels * dialogWidth()).toInt(),
+        (resources.displayMetrics.heightPixels * dialogHeight()).toInt(),
+        overlayType(),
+        WindowManager.LayoutParams.FLAG_DIM_BEHIND,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.CENTER
+        dimAmount = 0.35f
+    }
+
+    private fun dialogWidth() = when (FloatingPrefs.size(this)) {
+        "small" -> 0.76f
+        "large" -> 0.94f
+        else -> 0.88f
+    }
+
+    private fun dialogHeight() = when (FloatingPrefs.size(this)) {
+        "small" -> 0.52f
+        "large" -> 0.82f
+        else -> 0.68f
+    }
 
     override fun onDestroy() {
         listener?.let { clipboard.removePrimaryClipChangedListener(it) }
         hideDialog()
-        bubble?.let { runCatching { windowManager.removeView(it) } }
-        bubble = null
+        hideBubble()
         scope.cancel()
+        mainScope.cancel()
         super.onDestroy()
     }
 
@@ -152,5 +223,9 @@ class FloatingClipboardService : Service() {
         }
     }
 
-    companion object { private const val CHANNEL_ID = "rss_clipboard_monitor"; private const val NOTIFICATION_ID = 4015 }
+    companion object {
+        private const val CHANNEL_ID = "rss_clipboard_monitor"
+        private const val NOTIFICATION_ID = 4015
+        private const val AUTO_HIDE_MS = 15_000L
+    }
 }
