@@ -1,6 +1,7 @@
 package com.riyaz.rssclipboard
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -26,26 +27,32 @@ import com.riyaz.rssclipboard.data.*
 
 class MainActivity : ComponentActivity() {
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { MaterialTheme { ClipboardScreen(onOpenSettings = ::showFloatingSettings) } } }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { RssClipboardTheme(ThemePrefs.get(this)) { ClipboardScreen(onOpenSettings = ::showFloatingSettings, onOpenTheme = ::showThemeSettings) } } }
     override fun onResume() { super.onResume(); if (FloatingPrefs.enabled(this) && Settings.canDrawOverlays(this)) startFloatingService() }
     private fun startFloatingService() { if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS); startForegroundService(Intent(this, FloatingClipboardService::class.java)) }
     private fun showFloatingSettings() {
-        setContent { MaterialTheme {
-            ClipboardScreen(onOpenSettings = ::showFloatingSettings)
+        setContent { RssClipboardTheme(ThemePrefs.get(this)) {
+            ClipboardScreen(onOpenSettings = ::showFloatingSettings, onOpenTheme = ::showThemeSettings)
             FloatingSettingsDialog(
-                onDismiss = { setContent { MaterialTheme { ClipboardScreen(onOpenSettings = ::showFloatingSettings) } } },
+                onDismiss = { setContent { RssClipboardTheme(ThemePrefs.get(this)) { ClipboardScreen(onOpenSettings = ::showFloatingSettings, onOpenTheme = ::showThemeSettings) } } },
                 onEnable = { FloatingPrefs.setEnabled(this, true); if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) else startFloatingService() },
                 onDisable = { FloatingPrefs.setEnabled(this, false); stopService(Intent(this, FloatingClipboardService::class.java)) }
             )
+        } }
+    }
+    private fun showThemeSettings() {
+        setContent { RssClipboardTheme(ThemePrefs.get(this)) {
+            ClipboardScreen(onOpenSettings = ::showFloatingSettings, onOpenTheme = ::showThemeSettings)
+            ThemeSelectorDialog(onDismiss = { setContent { RssClipboardTheme(ThemePrefs.get(this)) { ClipboardScreen(onOpenSettings = ::showFloatingSettings, onOpenTheme = ::showThemeSettings) } } })
         } }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClipboardScreen(vm: MainViewModel = viewModel(), onOpenSettings: () -> Unit) {
+fun ClipboardScreen(vm: MainViewModel = viewModel(), onOpenSettings: () -> Unit, onOpenTheme: () -> Unit) {
     val items by vm.visibleItems.collectAsState(); val query by vm.query.collectAsState(); var showClear by remember { mutableStateOf(false) }; var editing by remember { mutableStateOf<ClipboardItem?>(null) }; val clipboard = LocalClipboardManager.current
-    Scaffold(topBar = { TopAppBar(title = { Text("RSS Clipboard") }, actions = { TextButton(onClick = onOpenSettings) { Text("Floating") }; TextButton(onClick = { showClear = true }) { Text("Clear") } }) }) { pad ->
+    Scaffold(topBar = { TopAppBar(title = { Text("RSS Clipboard") }, actions = { TextButton(onClick = onOpenTheme) { Text("Theme") }; TextButton(onClick = onOpenSettings) { Text("Floating") }; TextButton(onClick = { showClear = true }) { Text("Clear") } }) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(horizontal = 12.dp)) {
             OutlinedTextField(value = query, onValueChange = vm::setQuery, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search clipboard") }); Spacer(Modifier.height(8.dp)); FilterRow(vm); Spacer(Modifier.height(8.dp))
             if (items.isEmpty()) Text("No clipboard items yet", modifier = Modifier.padding(16.dp)) else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { itemsIndexed(items, key = { _, it -> it.id }) { index, item -> ClipboardCard(index + 1, item, onCopy = { clipboard.setText(AnnotatedString(item.content)) }, onPin = { vm.togglePin(item) }, onDelete = { vm.delete(item) }, onEdit = { editing = item }) } }
@@ -53,6 +60,25 @@ fun ClipboardScreen(vm: MainViewModel = viewModel(), onOpenSettings: () -> Unit)
     }
     if (showClear) AlertDialog(onDismissRequest = { showClear = false }, title = { Text("Clear clipboard history?") }, text = { Text("This removes all saved entries, including pinned items.") }, confirmButton = { TextButton(onClick = { vm.clearAll(); showClear = false }) { Text("Clear") } }, dismissButton = { TextButton(onClick = { showClear = false }) { Text("Cancel") } })
     editing?.let { item -> var text by remember(item.id) { mutableStateOf(item.content) }; AlertDialog(onDismissRequest = { editing = null }, title = { Text("Edit item") }, text = { OutlinedTextField(text, { text = it }, minLines = 3) }, confirmButton = { TextButton(onClick = { vm.update(item, text); editing = null }) { Text("Save") } }, dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } }) }
+}
+
+@Composable
+private fun ThemeSelectorDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var selected by remember { mutableStateOf(ThemePrefs.get(context)) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Theme") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Choose the visual style for RSS Clipboard.", style = MaterialTheme.typography.bodySmall)
+            AppTheme.entries.forEach { theme ->
+                FilterChip(selected = selected == theme, onClick = {
+                    selected = theme
+                    ThemePrefs.set(context, theme)
+                    (context as? Activity)?.recreate()
+                    onDismiss()
+                }, label = { Text(theme.label) }, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }, confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } })
 }
 
 @Composable
