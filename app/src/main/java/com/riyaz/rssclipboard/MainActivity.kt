@@ -1,6 +1,5 @@
 package com.riyaz.rssclipboard
 
-import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
@@ -18,10 +17,14 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.riyaz.rssclipboard.data.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var clipboard: ClipboardManager
     private var listener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    private val ioScope = CoroutineScope(Dispatchers.IO)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,10 +36,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         listener = ClipboardManager.OnPrimaryClipChangedListener {
             val clip = clipboard.primaryClip ?: return@OnPrimaryClipChangedListener
-            if (clip.description.hasMimeType("text/plain") || clip.description.hasMimeType("text/html")) {
-                clip.getItemAt(0).coerceToText(this).toString().takeIf { it.isNotBlank() }?.let {
-                    (application as? ClipboardApplication)?.lastCaptured = it
-                }
+            val text = clip.getItemAt(0).coerceToText(this).toString()
+            if (text.isNotBlank()) ioScope.launch {
+                ClipboardRepository(AppDatabase.get(this@MainActivity).clipboardDao()).add(text)
             }
         }
         clipboard.addPrimaryClipChangedListener(listener)
@@ -49,8 +51,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-class ClipboardApplication : android.app.Application() { var lastCaptured: String? = null }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClipboardScreen(vm: MainViewModel = viewModel()) {
@@ -61,10 +61,9 @@ fun ClipboardScreen(vm: MainViewModel = viewModel()) {
     val clipboard = LocalClipboardManager.current
 
     Scaffold(topBar = {
-        TopAppBar(
-            title = { Text("RSS Clipboard") },
-            actions = { TextButton(onClick = { showClear = true }) { Text("Clear") } }
-        )
+        TopAppBar(title = { Text("RSS Clipboard") }, actions = {
+            TextButton(onClick = { showClear = true }) { Text("Clear") }
+        })
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(horizontal = 12.dp)) {
             OutlinedTextField(
@@ -75,17 +74,14 @@ fun ClipboardScreen(vm: MainViewModel = viewModel()) {
             Spacer(Modifier.height(8.dp))
             FilterRow(vm)
             Spacer(Modifier.height(8.dp))
-            if (items.isEmpty()) {
-                Text("No clipboard items yet", modifier = Modifier.padding(16.dp))
-            } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (items.isEmpty()) Text("No clipboard items yet", modifier = Modifier.padding(16.dp))
+            else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
-                    ClipboardCard(
-                        number = index + 1, item = item,
+                    ClipboardCard(index + 1, item,
                         onCopy = { clipboard.setText(AnnotatedString(item.content)) },
                         onPin = { vm.togglePin(item) },
                         onDelete = { vm.delete(item) },
-                        onEdit = { editing = item }
-                    )
+                        onEdit = { editing = item })
                 }
             }
         }
@@ -112,10 +108,10 @@ fun ClipboardScreen(vm: MainViewModel = viewModel()) {
 @Composable
 private fun FilterRow(vm: MainViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-        FilterChip(selected = true, onClick = { vm.setFilter(null) }, label = { Text("All") })
-        FilterChip(selected = false, onClick = { vm.setFilter(ClipboardType.URL) }, label = { Text("URLs") })
-        FilterChip(selected = false, onClick = { vm.setFilter(ClipboardType.EMAIL) }, label = { Text("Email") })
-        FilterChip(selected = false, onClick = { vm.setFilter(ClipboardType.PHONE) }, label = { Text("Phone") })
+        FilterChip(selected = vm.filter.collectAsState().value == null, onClick = { vm.setFilter(null) }, label = { Text("All") })
+        FilterChip(selected = vm.filter.collectAsState().value == ClipboardType.URL, onClick = { vm.setFilter(ClipboardType.URL) }, label = { Text("URLs") })
+        FilterChip(selected = vm.filter.collectAsState().value == ClipboardType.EMAIL, onClick = { vm.setFilter(ClipboardType.EMAIL) }, label = { Text("Email") })
+        FilterChip(selected = vm.filter.collectAsState().value == ClipboardType.PHONE, onClick = { vm.setFilter(ClipboardType.PHONE) }, label = { Text("Phone") })
     }
 }
 
