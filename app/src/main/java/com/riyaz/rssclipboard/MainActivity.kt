@@ -1,10 +1,17 @@
 package com.riyaz.rssclipboard
 
+import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -22,38 +29,28 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private lateinit var clipboard: ClipboardManager
-    private var listener: ClipboardManager.OnPrimaryClipChangedListener? = null
-    private val ioScope = CoroutineScope(Dispatchers.IO)
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        setContent { MaterialTheme { ClipboardScreen() } }
+        setContent { MaterialTheme { ClipboardScreen(onOpenSettings = ::openFloatingSettings) } }
     }
 
-    override fun onResume() {
-        super.onResume()
-        listener = ClipboardManager.OnPrimaryClipChangedListener {
-            val clip = clipboard.primaryClip ?: return@OnPrimaryClipChangedListener
-            val text = clip.getItemAt(0).coerceToText(this).toString()
-            if (text.isNotBlank()) ioScope.launch {
-                ClipboardRepository(AppDatabase.get(this@MainActivity).clipboardDao()).add(text)
-            }
+    private fun openFloatingSettings() {
+        if (!Settings.canDrawOverlays(this)) {
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            return
         }
-        clipboard.addPrimaryClipChangedListener(listener)
-    }
-
-    override fun onPause() {
-        listener?.let { clipboard.removePrimaryClipChangedListener(it) }
-        listener = null
-        super.onPause()
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        startForegroundService(Intent(this, FloatingClipboardService::class.java))
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClipboardScreen(vm: MainViewModel = viewModel()) {
+fun ClipboardScreen(vm: MainViewModel = viewModel(), onOpenSettings: () -> Unit) {
     val items by vm.visibleItems.collectAsState()
     val query by vm.query.collectAsState()
     var showClear by remember { mutableStateOf(false) }
@@ -62,6 +59,7 @@ fun ClipboardScreen(vm: MainViewModel = viewModel()) {
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("RSS Clipboard") }, actions = {
+            TextButton(onClick = onOpenSettings) { Text("Floating") }
             TextButton(onClick = { showClear = true }) { Text("Clear") }
         })
     }) { pad ->
@@ -107,11 +105,13 @@ fun ClipboardScreen(vm: MainViewModel = viewModel()) {
 
 @Composable
 private fun FilterRow(vm: MainViewModel) {
+    val filter by vm.filter.collectAsState()
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-        FilterChip(selected = vm.filter.collectAsState().value == null, onClick = { vm.setFilter(null) }, label = { Text("All") })
-        FilterChip(selected = vm.filter.collectAsState().value == ClipboardType.URL, onClick = { vm.setFilter(ClipboardType.URL) }, label = { Text("URLs") })
-        FilterChip(selected = vm.filter.collectAsState().value == ClipboardType.EMAIL, onClick = { vm.setFilter(ClipboardType.EMAIL) }, label = { Text("Email") })
-        FilterChip(selected = vm.filter.collectAsState().value == ClipboardType.PHONE, onClick = { vm.setFilter(ClipboardType.PHONE) }, label = { Text("Phone") })
+        FilterChip(selected = filter == null, onClick = { vm.setFilter(null) }, label = { Text("All") })
+        FilterChip(selected = filter == ClipboardType.TEXT, onClick = { vm.setFilter(ClipboardType.TEXT) }, label = { Text("Text") })
+        FilterChip(selected = filter == ClipboardType.URL, onClick = { vm.setFilter(ClipboardType.URL) }, label = { Text("URLs") })
+        FilterChip(selected = filter == ClipboardType.EMAIL, onClick = { vm.setFilter(ClipboardType.EMAIL) }, label = { Text("Email") })
+        FilterChip(selected = filter == ClipboardType.PHONE, onClick = { vm.setFilter(ClipboardType.PHONE) }, label = { Text("Phone") })
     }
 }
 
