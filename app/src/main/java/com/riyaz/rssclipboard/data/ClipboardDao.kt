@@ -8,6 +8,9 @@ interface ClipboardDao {
     @Query("SELECT * FROM clipboard_items ORDER BY pinned DESC, createdAt DESC")
     fun observeAll(): Flow<List<ClipboardItem>>
 
+    @Query("SELECT * FROM clipboard_items WHERE content = :content LIMIT 1")
+    suspend fun findByContent(content: String): ClipboardItem?
+
     @Insert
     suspend fun insert(item: ClipboardItem)
 
