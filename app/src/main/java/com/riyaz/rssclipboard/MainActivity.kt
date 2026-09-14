@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,15 +33,21 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); renderApp() }
     override fun onResume() { super.onResume(); if (FloatingPrefs.enabled(this) && Settings.canDrawOverlays(this)) startFloatingService() }
-    private fun renderApp() { setContent { RssClipboardTheme(ThemePrefs.get(this)) { RssApp(::showFloatingSettings, ::showThemeSettings) } } }
+    private fun renderApp() { setContent { RssClipboardTheme(ThemePrefs.get(this)) { RssApp(::showFloatingSettings, ::showThemeSettings, ::openBatteryOptimization) } } }
     private fun startFloatingService() { if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS); startForegroundService(Intent(this, FloatingClipboardService::class.java)) }
-    private fun showFloatingSettings() { setContent { RssClipboardTheme(ThemePrefs.get(this)) { RssApp(::showFloatingSettings, ::showThemeSettings); FloatingSettingsDialog(::renderApp, { FloatingPrefs.setEnabled(this,true); if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) else startFloatingService() }, { FloatingPrefs.setEnabled(this,false); stopService(Intent(this,FloatingClipboardService::class.java)) }) } } }
-    private fun showThemeSettings() { setContent { RssClipboardTheme(ThemePrefs.get(this)) { RssApp(::showFloatingSettings, ::showThemeSettings); ThemeSelectorDialog(::renderApp) } } }
+    private fun showFloatingSettings() { setContent { RssClipboardTheme(ThemePrefs.get(this)) { RssApp(::showFloatingSettings, ::showThemeSettings, ::openBatteryOptimization); FloatingSettingsDialog(::renderApp, { FloatingPrefs.setEnabled(this,true); if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) else startFloatingService() }, { FloatingPrefs.setEnabled(this,false); stopService(Intent(this,FloatingClipboardService::class.java)) }) } } }
+    private fun showThemeSettings() { setContent { RssClipboardTheme(ThemePrefs.get(this)) { RssApp(::showFloatingSettings, ::showThemeSettings, ::openBatteryOptimization); ThemeSelectorDialog(::renderApp) } } }
+    private fun openBatteryOptimization() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val powerManager = getSystemService(PowerManager::class.java)
+        if (powerManager.isIgnoringBatteryOptimizations(packageName)) return
+        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:$packageName") })
+    }
 }
 
 private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 
-@Composable private fun RssApp(onOpenFloating: () -> Unit, onOpenTheme: () -> Unit) {
+@Composable private fun RssApp(onOpenFloating: () -> Unit, onOpenTheme: () -> Unit, onBatteryOptimization: () -> Unit) {
     var screen by remember { mutableStateOf(RssScreen.CLIPBOARD) }
     Scaffold(bottomBar = {
         NavigationBar {
@@ -53,7 +60,7 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
             when(screen) {
                 RssScreen.CLIPBOARD -> ClipboardScreen()
                 RssScreen.SAVED -> SavedListScreen()
-                RssScreen.SETTINGS -> SettingsScreen(onOpenFloating,onOpenTheme)
+                RssScreen.SETTINGS -> SettingsScreen(onOpenFloating,onOpenTheme,onBatteryOptimization)
             }
         }
     }
@@ -82,7 +89,15 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 
 @Composable private fun EditSavedDialog(item:SavedItem,onDismiss:()->Unit,onSave:(String,String,String,String)->Unit){var c by remember(item.id){mutableStateOf(item.category)};var n by remember(item.id){mutableStateOf(item.fileName)};var d by remember(item.id){mutableStateOf(item.data)};var desc by remember(item.id){mutableStateOf(item.description)};AlertDialog(onDismissRequest=onDismiss,title={Text("Edit Saved Item")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(c,{c=it},label={Text("Category")});OutlinedTextField(n,{n=it},label={Text("File name")});OutlinedTextField(d,{d=it},label={Text("Data")},minLines=3);OutlinedTextField(desc,{desc=it},label={Text("Description")})}},confirmButton={TextButton({onSave(c,n,d,desc)}){Text("Save")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})}
 
-@Composable private fun SettingsScreen(onOpenFloating:()->Unit,onOpenTheme:()->Unit){Scaffold(topBar={TopAppBar(title={Text("Settings")})}){pad->Column(Modifier.fillMaxSize().padding(pad).padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){SettingsRow(Icons.Default.BubbleChart,"Floating Clipboard", "Overlay, auto-hide and dialog options",onOpenFloating);SettingsRow(Icons.Default.Palette,"Theme", "Windows, Ubuntu, Android, macOS, iOS and more",onOpenTheme)}}}
+@Composable private fun SettingsScreen(onOpenFloating:()->Unit,onOpenTheme:()->Unit,onBatteryOptimization:()->Unit){
+    val context=LocalContext.current
+    val batteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) !(context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) ?: false) else false
+    Scaffold(topBar={TopAppBar(title={Text("Settings")})}){pad->Column(Modifier.fillMaxSize().padding(pad).padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+        SettingsRow(Icons.Default.BubbleChart,"Floating Clipboard", "Overlay, auto-hide and dialog options",onOpenFloating)
+        SettingsRow(Icons.Default.BatteryChargingFull,"Battery Optimization", if (batteryOptimized) "Allow RSS Clipboard to stay active with less background restriction" else "Optimized for always-on background operation",onBatteryOptimization)
+        SettingsRow(Icons.Default.Palette,"Theme", "Windows, Ubuntu, Android, macOS, iOS and more",onOpenTheme)
+    }}
+}
 @Composable private fun SettingsRow(icon:androidx.compose.ui.graphics.vector.ImageVector,title:String,subtitle:String,onClick:()->Unit){Card(onClick=onClick,modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(14.dp)){Icon(icon,title);Column{Text(title,style=MaterialTheme.typography.titleMedium);Text(subtitle,style=MaterialTheme.typography.bodySmall)}}}}
 
 @Composable private fun ThemeSelectorDialog(onDismiss:()->Unit){val context=LocalContext.current;var selected by remember{mutableStateOf(ThemePrefs.get(context))};AlertDialog(onDismissRequest=onDismiss,title={Text("Theme")},text={Column(verticalArrangement=Arrangement.spacedBy(6.dp)){Text("Choose the visual style for RSS Clipboard.",style=MaterialTheme.typography.bodySmall);AppTheme.entries.forEach{theme->FilterChip(selected=selected==theme,onClick={selected=theme;ThemePrefs.set(context,theme);(context as? Activity)?.recreate();onDismiss()},label={Text(theme.label)},modifier=Modifier.fillMaxWidth())}}},confirmButton={TextButton(onClick=onDismiss){Text("Done")}})}
