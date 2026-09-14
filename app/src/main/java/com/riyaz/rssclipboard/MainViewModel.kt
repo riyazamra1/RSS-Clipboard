@@ -24,9 +24,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setFilter(value: ClipboardType?) { _filter.value = value }
     fun add(content: String) = viewModelScope.launch { repository.add(content) }
     fun delete(item: ClipboardItem) = viewModelScope.launch { repository.delete(item) }
-    fun togglePin(item: ClipboardItem) = viewModelScope.launch { repository.update(item.copy(pinned = !item.pinned)) }
+    fun togglePin(item: ClipboardItem) = viewModelScope.launch {
+        repository.update(item.copy(pinned = !item.pinned), item.content)
+    }
     fun update(item: ClipboardItem, content: String) = viewModelScope.launch {
-        repository.update(item.copy(content = content, type = ClipboardDetector.detect(content)))
+        repository.update(item, content)
     }
     fun clearAll() = viewModelScope.launch { repository.clear() }
 }
