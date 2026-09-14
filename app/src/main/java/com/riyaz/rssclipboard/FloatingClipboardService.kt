@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.first
 class FloatingClipboardService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var hideJob: Job? = null
     private lateinit var clipboard: ClipboardManager
     private lateinit var repository: ClipboardRepository
     private lateinit var windowManager: WindowManager
@@ -85,17 +86,20 @@ class FloatingClipboardService : Service() {
     }
 
     private fun resetHideTimer() {
-        mainScope.coroutineContext.cancelChildren()
+        hideJob?.cancel()
+        hideJob = null
         if (!FloatingPrefs.autoHide(this) || bubble == null) return
         val seconds = FloatingPrefs.hideTimerSeconds(this)
         if (seconds <= 0) return
-        mainScope.launch {
+        hideJob = mainScope.launch {
             delay(seconds * 1000L)
             if (bubble != null) hideBubble()
         }
     }
 
     private fun hideBubble() {
+        hideJob?.cancel()
+        hideJob = null
         bubble?.let { runCatching { windowManager.removeView(it) } }
         bubble = null
     }
