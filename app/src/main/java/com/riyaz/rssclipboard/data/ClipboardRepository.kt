@@ -33,11 +33,34 @@ class ClipboardRepository(private val dao: ClipboardDao) {
     }
 
     suspend fun delete(item: ClipboardItem) = dao.delete(item)
+
     suspend fun update(item: ClipboardItem, content: String) {
         val normalized = content.trim()
         if (normalized.isBlank()) return
-        dao.update(item.copy(content = normalized, type = ClipboardDetector.detect(normalized)))
+
+        val duplicate = dao.findByContent(normalized)
+        if (duplicate != null && duplicate.id != item.id) {
+            // Never leave two history entries with the same content.
+            val now = System.currentTimeMillis()
+            dao.update(
+                duplicate.copy(
+                    createdAt = now,
+                    expiresAt = now + ClipboardItem.DAY_MS,
+                    pinned = duplicate.pinned || item.pinned
+                )
+            )
+            dao.delete(item)
+            return
+        }
+
+        dao.update(
+            item.copy(
+                content = normalized,
+                type = ClipboardDetector.detect(normalized)
+            )
+        )
     }
+
     suspend fun deleteExpired() = dao.deleteExpired(System.currentTimeMillis())
     suspend fun clear() = dao.deleteAll()
 }
