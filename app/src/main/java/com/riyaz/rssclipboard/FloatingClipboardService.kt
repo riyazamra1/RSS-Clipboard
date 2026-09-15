@@ -58,7 +58,10 @@ class FloatingClipboardService : Service() {
     }
 
     private fun notification(): Notification {
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val open = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher)
             .setContentTitle("RSS Clipboard")
@@ -136,7 +139,7 @@ class FloatingClipboardService : Service() {
     private fun populate(list: LinearLayout, items: List<ClipboardItem>) {
         list.removeAllViews()
         if (items.isEmpty()) {
-            list.addView(TextView(this).apply { text = "No saved clipboard items"; setPadding(0, 20, 0, 20) })
+            list.addView(TextView(this).apply { text = "No clipboard items"; setPadding(0, 20, 0, 20) })
             return
         }
         items.take(50).forEachIndexed { index, item ->
@@ -148,8 +151,16 @@ class FloatingClipboardService : Service() {
                     if (FloatingPrefs.closeAfterCopy(this@FloatingClipboardService)) hideDialog()
                 }
             }
-            row.addView(TextView(this).apply { text = "#${index + 1}  ${item.type.name}${if (item.pinned) "  •  PINNED" else ""}"; textSize = 12f })
-            row.addView(TextView(this).apply { text = item.content; textSize = 16f; maxLines = 4; setPadding(0, 4, 0, 0) })
+            row.addView(TextView(this).apply {
+                text = "#${index + 1}  ${item.type.name}${if (item.pinned) "  •  PINNED" else ""}"
+                textSize = 12f
+            })
+            row.addView(TextView(this).apply {
+                text = item.content
+                textSize = 16f
+                maxLines = 4
+                setPadding(0, 4, 0, 0)
+            })
             list.addView(row)
         }
     }
@@ -159,12 +170,24 @@ class FloatingClipboardService : Service() {
         dialog = null
     }
 
-    private fun bubbleParams() = WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, overlayType(), WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
+    private fun bubbleParams() = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        overlayType(),
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+        PixelFormat.TRANSLUCENT
+    ).apply {
         gravity = Gravity.END or Gravity.CENTER_VERTICAL
         x = 18
     }
 
-    private fun dialogParams() = WindowManager.LayoutParams((resources.displayMetrics.widthPixels * dialogWidth()).toInt(), (resources.displayMetrics.heightPixels * dialogHeight()).toInt(), overlayType(), WindowManager.LayoutParams.FLAG_DIM_BEHIND, PixelFormat.TRANSLUCENT).apply {
+    private fun dialogParams() = WindowManager.LayoutParams(
+        (resources.displayMetrics.widthPixels * dialogWidth()).toInt(),
+        (resources.displayMetrics.heightPixels * dialogHeight()).toInt(),
+        overlayType(),
+        WindowManager.LayoutParams.FLAG_DIM_BEHIND,
+        PixelFormat.TRANSLUCENT
+    ).apply {
         gravity = Gravity.CENTER
         dimAmount = 0.35f
     }
@@ -186,8 +209,9 @@ class FloatingClipboardService : Service() {
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
             val manager = getSystemService(NotificationManager::class.java)
-            manager.deleteNotificationChannel(CHANNEL_ID)
-            val importance = if (FloatingPrefs.notifications(this)) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_NONE
+            // A foreground service needs a usable notification channel. The user preference
+            // controls notification importance, but never disables the FGS channel itself.
+            val importance = NotificationManager.IMPORTANCE_LOW
             manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Clipboard monitor", importance).apply {
                 description = "RSS Clipboard background monitoring notification"
             })
