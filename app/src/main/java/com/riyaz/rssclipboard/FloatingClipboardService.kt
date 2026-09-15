@@ -64,6 +64,7 @@ class FloatingClipboardService : Service() {
             .setContentTitle("RSS Clipboard")
             .setContentText("Floating clipboard is active")
             .setOngoing(true)
+            .setSilent(true)
             .setContentIntent(open)
             .build()
     }
@@ -183,7 +184,14 @@ class FloatingClipboardService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= 26) getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL_ID, "Clipboard monitor", NotificationManager.IMPORTANCE_LOW))
+        if (Build.VERSION.SDK_INT >= 26) {
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.deleteNotificationChannel(CHANNEL_ID)
+            val importance = if (FloatingPrefs.notifications(this)) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_NONE
+            manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Clipboard monitor", importance).apply {
+                description = "RSS Clipboard background monitoring notification"
+            })
+        }
     }
 
     companion object {
