@@ -1,0 +1,22 @@
+name: Runner Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  runner:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Runner startup
+        run: |
+          echo "GitHub Actions runner started"
+          uname -a
+          cat /etc/os-release
+          java -version || true
