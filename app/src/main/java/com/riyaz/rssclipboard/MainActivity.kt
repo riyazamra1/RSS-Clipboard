@@ -60,16 +60,16 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
     var screen by remember{mutableStateOf(RssScreen.CLIPBOARD)}
     val drawerState=rememberDrawerState(DrawerValue.Closed);val scope=rememberCoroutineScope()
     ModalNavigationDrawer(drawerState=drawerState,drawerContent={ModalDrawerSheet{Column(Modifier.fillMaxHeight().padding(18.dp)){
-        Card(shape=RoundedCornerShape(24.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.82f)),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){Image(painterResource(com.riyaz.rssclipboard.R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(54.dp));Column{Text("Welcome",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(UserPrefs.name(LocalContext.current),style=MaterialTheme.typography.titleMedium);Text(UserPrefs.email(LocalContext.current),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+        Card(shape=RoundedCornerShape(24.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.82f)),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){Image(painterResource(com.riyaz.rssclipboard.R.drawable.rss_original_logo),"Razeen Secure Solution",Modifier.size(58.dp));Column{Text("Welcome",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(UserPrefs.name(LocalContext.current),style=MaterialTheme.typography.titleMedium);Text(UserPrefs.email(LocalContext.current),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
         Spacer(Modifier.height(26.dp))
-        NavigationDrawerItem(label={Text("Clipboard")},selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD;scope.launch{drawerState.close()}},icon={Icon(Icons.Default.ContentPaste,null)})
-        NavigationDrawerItem(label={Text("Saved List")},selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED;scope.launch{drawerState.close()}},icon={Icon(Icons.Default.Bookmark,null)})
-        NavigationDrawerItem(label={Text("Settings")},selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS;scope.launch{drawerState.close()}},icon={Icon(Icons.Default.Settings,null)})
-        Spacer(Modifier.weight(1f));Text("RSS Clipboard • v1.0.0",style=MaterialTheme.typography.labelSmall)
+        NavigationDrawerItem(label={Text("Clipboard")},selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.ContentPaste, "Clipboard")})
+        NavigationDrawerItem(label={Text("Saved List")},selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.Bookmark, "Saved")})
+        NavigationDrawerItem(label={Text("Settings")},selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.Settings, "Settings")})
+        Spacer(Modifier.weight(1f));Image(painterResource(com.riyaz.rssclipboard.R.drawable.rss_original_logo),"Razeen Secure Solution",Modifier.size(44.dp));Spacer(Modifier.height(6.dp));Text("Razeen Secure Solution",style=MaterialTheme.typography.labelSmall);Text("RSS Clipboard • v1.0.0",style=MaterialTheme.typography.labelSmall)
     }}}){Scaffold(topBar={CenterAlignedTopAppBar(title={Text(when(screen){RssScreen.CLIPBOARD->"Clipboard";RssScreen.SAVED->"Saved List";RssScreen.SETTINGS->"Settings"})},navigationIcon={IconButton({scope.launch{drawerState.open()}}){Icon(Icons.Default.Menu,"Menu")}})},bottomBar={NavigationBar{
-        NavigationBarItem(selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD},icon={Icon(Icons.Default.ContentPaste,null)},label={Text("Clipboard")})
-        NavigationBarItem(selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED},icon={Icon(Icons.Default.Bookmark,null)},label={Text("Saved")})
-        NavigationBarItem(selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS},icon={Icon(Icons.Default.Settings,null)},label={Text("Settings")})
+        NavigationBarItem(selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD},icon={ColorfulIcon(Icons.Default.ContentPaste, "Clipboard")},label={Text("Clipboard")})
+        NavigationBarItem(selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED},icon={ColorfulIcon(Icons.Default.Bookmark, "Saved")},label={Text("Saved")})
+        NavigationBarItem(selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS},icon={ColorfulIcon(Icons.Default.Settings, "Settings")},label={Text("Settings")})
     }}){pad->Box(Modifier.fillMaxSize().padding(pad)){AnimatedContent(targetState=screen,label="screen"){target->when(target){RssScreen.CLIPBOARD->ClipboardScreen();RssScreen.SAVED->SavedListScreen();RssScreen.SETTINGS->SettingsScreen(onOpenFloating,onOpenTheme,onBatteryOptimization)}}}}}
 }
 @Composable private fun WelcomeScreen(onRegister:(String,String)->Unit){
@@ -109,7 +109,7 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
     Card(shape=RoundedCornerShape(18.dp), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface), elevation=CardDefaults.cardElevation(defaultElevation=1.dp), modifier=Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment=Alignment.Top, horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             Surface(shape=RoundedCornerShape(14.dp), color=MaterialTheme.colorScheme.surfaceVariant) {
-                Icon(if(item.type==ClipboardType.URL) Icons.Default.Link else if(item.type==ClipboardType.EMAIL) Icons.Default.Email else if(item.type==ClipboardType.PHONE) Icons.Default.Phone else Icons.Default.ContentPaste, null, modifier=Modifier.padding(10.dp))
+                ColorfulIcon(if(item.type==ClipboardType.URL) Icons.Default.Link else if(item.type==ClipboardType.EMAIL) Icons.Default.Email else if(item.type==ClipboardType.PHONE) Icons.Default.Phone else Icons.Default.ContentPaste, item.type.name, modifier=Modifier.padding(10.dp))
             }
             Column(Modifier.weight(1f)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically) {
@@ -131,7 +131,7 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 @Composable private fun SavedCard(item:SavedItem,onCopy:()->Unit,onEdit:()->Unit,onDelete:()->Unit){
     Card(shape=RoundedCornerShape(18.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){
         Row(Modifier.padding(14.dp),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)){
-            Surface(shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surfaceVariant){Icon(Icons.Default.Bookmark,"Saved",modifier=Modifier.padding(10.dp))}
+            Surface(shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surfaceVariant){ColorfulIcon(Icons.Default.Bookmark, "Saved", modifier=Modifier.padding(10.dp))}
             Column(Modifier.weight(1f)){
                 Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text(item.category,style=MaterialTheme.typography.labelMedium);Text("PERMANENT",style=MaterialTheme.typography.labelSmall)}
                 Text(item.fileName,style=MaterialTheme.typography.titleMedium);Spacer(Modifier.height(4.dp));Text(item.data,maxLines=5)
@@ -160,14 +160,14 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
         SettingsRow(Icons.Default.Palette,"Theme","Windows, Ubuntu, Android, macOS, iOS and more",onOpenTheme)
         Spacer(Modifier.weight(1f))
         Column(Modifier.fillMaxWidth().padding(bottom=18.dp),horizontalAlignment=Alignment.CenterHorizontally){
-            Image(painterResource(com.riyaz.rssclipboard.R.drawable.rss_clipboard_logo),"Razeen Secure Solution",Modifier.size(56.dp))
+            Image(painterResource(com.riyaz.rssclipboard.R.drawable.rss_original_logo),"Razeen Secure Solution",Modifier.size(58.dp))
             Spacer(Modifier.height(6.dp));Text("Razeen Secure Solution",style=MaterialTheme.typography.titleSmall)
             Text("RSS • Mobile & PC Software • CCTV • Networking • System Administration",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Text("www.rsscctvsolution.eu.cc",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }}
 }
-@Composable private fun SettingsRow(icon:androidx.compose.ui.graphics.vector.ImageVector,title:String,subtitle:String,onClick:()->Unit){Card(onClick=onClick,modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(14.dp)){Icon(icon,title);Column{Text(title,style=MaterialTheme.typography.titleMedium);Text(subtitle,style=MaterialTheme.typography.bodySmall)}}}}
+@Composable private fun SettingsRow(icon:androidx.compose.ui.graphics.vector.ImageVector,title:String,subtitle:String,onClick:()->Unit){Card(onClick=onClick,modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.CenterVertically){ColorfulIcon(icon,title,modifier=Modifier.size(28.dp));Column{Text(title,style=MaterialTheme.typography.titleMedium);Text(subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
 
 @Composable private fun ThemeSelectorDialog(onDismiss:()->Unit){val context=LocalContext.current;var selected by remember{mutableStateOf(ThemePrefs.get(context))};AlertDialog(onDismissRequest=onDismiss,title={Text("Theme")},text={Column(verticalArrangement=Arrangement.spacedBy(6.dp)){Text("Choose the visual style for RSS Clipboard.",style=MaterialTheme.typography.bodySmall);AppTheme.entries.forEach{theme->FilterChip(selected=selected==theme,onClick={selected=theme;ThemePrefs.set(context,theme);(context as? Activity)?.recreate();onDismiss()},label={Text(theme.label)},modifier=Modifier.fillMaxWidth())}}},confirmButton={TextButton(onClick=onDismiss){Text("Done")}})}
 
@@ -190,6 +190,24 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
         Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf(3,5,10,15).forEach{seconds->FilterChip(timer==seconds,{timer=seconds;FloatingPrefs.setHideTimerSeconds(context,seconds);restart()},label={Text(seconds.toString()+"s")})}}
         Text("The clipboard monitor works without the floating shortcut.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
     }},confirmButton={TextButton(onClick=onDismiss){Text("Done")}})
+}
+
+@Composable private fun ColorfulIcon(icon: ImageVector, key: String, modifier: Modifier = Modifier) {
+    val tint = when {
+        key.contains("URL", true) || key.contains("LINK", true) -> Color(0xFF1976D2)
+        key.contains("EMAIL", true) -> Color(0xFFE53935)
+        key.contains("PHONE", true) -> Color(0xFF43A047)
+        key.contains("CLIP", true) -> Color(0xFF7E57C2)
+        key.contains("SAVE", true) || key.contains("BOOKMARK", true) -> Color(0xFFFFA000)
+        key.contains("SETTING", true) -> Color(0xFF00897B)
+        key.contains("BATTERY", true) -> Color(0xFF2E7D32)
+        key.contains("NOTIF", true) -> Color(0xFFFF7043)
+        key.contains("THEME", true) || key.contains("PALETTE", true) -> Color(0xFF8E24AA)
+        key.contains("FLOAT", true) || key.contains("BUBBLE", true) -> Color(0xFF039BE5)
+        key.contains("HOME", true) -> Color(0xFF3949AB)
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Icon(icon, contentDescription = key, modifier = modifier, tint = tint)
 }
 @Composable private fun SettingSwitch(label:String,checked:Boolean,onCheckedChange:(Boolean)->Unit){Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text(label,Modifier.weight(1f));Switch(checked,onCheckedChange)}}
 @Composable private fun FilterRow(vm:MainViewModel){val filter by vm.filter.collectAsState();Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()){FilterChip(selected=filter==null,onClick={vm.setFilter(null)},label={Text("All")});FilterChip(selected=filter==ClipboardType.TEXT,onClick={vm.setFilter(ClipboardType.TEXT)},label={Text("Text")});FilterChip(selected=filter==ClipboardType.URL,onClick={vm.setFilter(ClipboardType.URL)},label={Text("URLs")});FilterChip(selected=filter==ClipboardType.EMAIL,onClick={vm.setFilter(ClipboardType.EMAIL)},label={Text("Email")});FilterChip(selected=filter==ClipboardType.PHONE,onClick={vm.setFilter(ClipboardType.PHONE)},label={Text("Phone")})}}
