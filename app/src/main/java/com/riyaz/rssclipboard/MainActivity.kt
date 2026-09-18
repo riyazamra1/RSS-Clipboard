@@ -113,7 +113,7 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
     Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("#$index • \${item.type.name}", style = MaterialTheme.typography.labelMedium)
+                Text("#$index • ${item.type.name}", style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     IconButton(onClick = onPin) {
                         Icon(Icons.Default.PushPin, if (item.pinned) "Unpin" else "Pin")
