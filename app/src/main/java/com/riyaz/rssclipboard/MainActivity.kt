@@ -128,7 +128,7 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
                 style = MaterialTheme.typography.bodyLarge
             )
             Text(
-                "Expires in 24 hours\${if (item.pinned) " • Pinned" else ""}",
+                "Expires in 24 hours${if (item.pinned) " • Pinned" else ""}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
