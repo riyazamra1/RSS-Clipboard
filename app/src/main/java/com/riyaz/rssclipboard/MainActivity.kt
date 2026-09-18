@@ -103,53 +103,45 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 }
 
 @Composable private fun ClipboardCard(
-    index: Int,
-    item: ClipboardItem,
-    onCopy: () -> Unit,
-    onPin: () -> Unit,
-    onDelete: () -> Unit,
-    onEdit: () -> Unit,
-    onSave: () -> Unit
+    index: Int, item: ClipboardItem, onCopy: () -> Unit, onPin: () -> Unit,
+    onDelete: () -> Unit, onEdit: () -> Unit, onSave: () -> Unit
 ) {
-    Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("#$index • ${item.type.name}", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    IconButton(onClick = onPin) {
-                        Icon(Icons.Default.PushPin, if (item.pinned) "Unpin" else "Pin")
-                    }
-                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete") }
-                }
+    Card(shape=RoundedCornerShape(18.dp), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface), elevation=CardDefaults.cardElevation(defaultElevation=1.dp), modifier=Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(14.dp), verticalAlignment=Alignment.Top, horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+            Surface(shape=RoundedCornerShape(14.dp), color=MaterialTheme.colorScheme.surfaceVariant) {
+                Icon(if(item.type==ClipboardType.URL) Icons.Default.Link else if(item.type==ClipboardType.EMAIL) Icons.Default.Email else if(item.type==ClipboardType.PHONE) Icons.Default.Phone else Icons.Default.ContentPaste, null, modifier=Modifier.padding(10.dp))
             }
-            Text(
-                item.content,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                maxLines = 8,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                "Expires in 24 hours${if (item.pinned) " • Pinned" else ""}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onCopy) { Text("Copy") }
-                TextButton(onClick = onEdit) { Text("Edit") }
-                TextButton(onClick = onSave) { Text("Save") }
+            Column(Modifier.weight(1f)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically) {
+                    Text("#$index • ${item.type.name}", style=MaterialTheme.typography.labelMedium)
+                    Row { IconButton(onClick=onPin){Icon(Icons.Default.PushPin,if(item.pinned)"Unpin" else "Pin")}; IconButton(onClick=onDelete){Icon(Icons.Default.Delete,"Delete")} }
+                }
+                Text(item.content, Modifier.fillMaxWidth().padding(vertical=6.dp), maxLines=8, style=MaterialTheme.typography.bodyLarge)
+                Text("Expires in 24 hours${if(item.pinned) " • Pinned" else ""}", style=MaterialTheme.typography.labelSmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement=Arrangement.spacedBy(4.dp)) { TextButton(onClick=onCopy){Text("Copy")}; TextButton(onClick=onEdit){Text("Edit")}; TextButton(onClick=onSave){Text("Save")} }
             }
         }
     }
 }
-
-@Composable private fun SaveToListDialog(initialData:String,onDismiss:()->Unit){val vm:SavedListViewModel=viewModel();var category by remember{mutableStateOf("General")};var fileName by remember{mutableStateOf("")};var data by remember(initialData){mutableStateOf(initialData)};var description by remember{mutableStateOf("")};AlertDialog(onDismissRequest=onDismiss,title={Text("Save to List")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text("Permanent Saved List item. It will not expire with clipboard history.",style=MaterialTheme.typography.bodySmall);OutlinedTextField(category,{category=it},label={Text("Category")},singleLine=true);OutlinedTextField(fileName,{fileName=it},label={Text("File name")},singleLine=true);OutlinedTextField(data,{data=it},label={Text("Data")},minLines=3);OutlinedTextField(description,{description=it},label={Text("Description")},minLines=2)}},confirmButton={TextButton({vm.add(category,fileName,data,description);onDismiss()}){Text("Save")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})}
+@Composable private fun SaveToListDialog@Composable private fun SaveToListDialog(initialData:String,onDismiss:()->Unit){val vm:SavedListViewModel=viewModel();var category by remember{mutableStateOf("General")};var fileName by remember{mutableStateOf("")};var data by remember(initialData){mutableStateOf(initialData)};var description by remember{mutableStateOf("")};AlertDialog(onDismissRequest=onDismiss,title={Text("Save to List")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text("Permanent Saved List item. It will not expire with clipboard history.",style=MaterialTheme.typography.bodySmall);OutlinedTextField(category,{category=it},label={Text("Category")},singleLine=true);OutlinedTextField(fileName,{fileName=it},label={Text("File name")},singleLine=true);OutlinedTextField(data,{data=it},label={Text("Data")},minLines=3);OutlinedTextField(description,{description=it},label={Text("Description")},minLines=2)}},confirmButton={TextButton({vm.add(category,fileName,data,description);onDismiss()}){Text("Save")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun SavedListScreen(vm:SavedListViewModel=viewModel()){val items by vm.visibleItems.collectAsState();val query by vm.query.collectAsState();val categories by vm.categories.collectAsState();val selectedCategory by vm.category.collectAsState();val clipboard=LocalClipboardManager.current;var editing by remember{mutableStateOf<SavedItem?>(null)};var showClear by remember{mutableStateOf(false)};Scaffold(topBar={TopAppBar(title={Text("Saved List")},actions={IconButton({showClear=true}){Icon(Icons.Default.DeleteSweep,"Clear")}})}){pad->Column(Modifier.fillMaxSize().padding(pad).padding(horizontal=12.dp)){OutlinedTextField(query,vm::setQuery,Modifier.fillMaxWidth(),singleLine=true,label={Text("Search saved list")});Spacer(Modifier.height(8.dp));Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()){FilterChip(selected=selectedCategory==null,onClick={vm.setCategory(null)},label={Text("All")});categories.take(5).forEach{cat->FilterChip(selected=selectedCategory==cat,onClick={vm.setCategory(cat)},label={Text(cat)})}};Spacer(Modifier.height(8.dp));if(items.isEmpty())Text("No saved items yet",Modifier.padding(16.dp))else LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(items,key={it.id}){item->SavedCard(item,{clipboard.setText(AnnotatedString(item.data))},{editing=item},{vm.delete(item)})}}}};if(showClear)AlertDialog(onDismissRequest={showClear=false},title={Text("Clear Saved List?")},text={Text("This permanently deletes all saved items. Clipboard history is not affected.")},confirmButton={TextButton({vm.clearAll();showClear=false}){Text("Delete all")}},dismissButton={TextButton({showClear=false}){Text("Cancel")}});editing?.let{item->EditSavedDialog(item,{editing=null}){c,n,d,desc->vm.update(item,c,n,d,desc);editing=null}}}
 
-@Composable private fun SavedCard(item:SavedItem,onCopy:()->Unit,onEdit:()->Unit,onDelete:()->Unit){Card(shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text(item.category,style=MaterialTheme.typography.labelMedium);Text("PERMANENT",style=MaterialTheme.typography.labelSmall)};Text(item.fileName,style=MaterialTheme.typography.titleMedium);Spacer(Modifier.height(4.dp));Text(item.data,maxLines=5);if(item.description.isNotBlank())Text(item.description,style=MaterialTheme.typography.bodySmall);Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){TextButton(onClick=onCopy){Text("Copy")};TextButton(onClick=onEdit){Text("Edit")};TextButton(onClick=onDelete){Text("Delete")}}}}}
-
-@Composable private fun EditSavedDialog(item:SavedItem,onDismiss:()->Unit,onSave:(String,String,String,String)->Unit){var c by remember(item.id){mutableStateOf(item.category)};var n by remember(item.id){mutableStateOf(item.fileName)};var d by remember(item.id){mutableStateOf(item.data)};var desc by remember(item.id){mutableStateOf(item.description)};AlertDialog(onDismissRequest=onDismiss,title={Text("Edit Saved Item")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(c,{c=it},label={Text("Category")});OutlinedTextField(n,{n=it},label={Text("File name")});OutlinedTextField(d,{d=it},label={Text("Data")},minLines=3);OutlinedTextField(desc,{desc=it},label={Text("Description")})}},confirmButton={TextButton({onSave(c,n,d,desc)}){Text("Save")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})}
+@Composable private fun SavedCard(item:SavedItem,onCopy:()->Unit,onEdit:()->Unit,onDelete:()->Unit){
+    Card(shape=RoundedCornerShape(18.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){
+        Row(Modifier.padding(14.dp),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+            Surface(shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surfaceVariant){Icon(Icons.Default.Bookmark,"Saved",modifier=Modifier.padding(10.dp))}
+            Column(Modifier.weight(1f)){
+                Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text(item.category,style=MaterialTheme.typography.labelMedium);Text("PERMANENT",style=MaterialTheme.typography.labelSmall)}
+                Text(item.fileName,style=MaterialTheme.typography.titleMedium);Spacer(Modifier.height(4.dp));Text(item.data,maxLines=5)
+                if(item.description.isNotBlank())Text(item.description,style=MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){TextButton(onClick=onCopy){Text("Copy")};TextButton(onClick=onEdit){Text("Edit")};TextButton(onClick=onDelete){Text("Delete")}}
+            }
+        }
+    }
+}
+@Composable private fun EditSavedDialog@Composable private fun EditSavedDialog(item:SavedItem,onDismiss:()->Unit,onSave:(String,String,String,String)->Unit){var c by remember(item.id){mutableStateOf(item.category)};var n by remember(item.id){mutableStateOf(item.fileName)};var d by remember(item.id){mutableStateOf(item.data)};var desc by remember(item.id){mutableStateOf(item.description)};AlertDialog(onDismissRequest=onDismiss,title={Text("Edit Saved Item")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(c,{c=it},label={Text("Category")});OutlinedTextField(n,{n=it},label={Text("File name")});OutlinedTextField(d,{d=it},label={Text("Data")},minLines=3);OutlinedTextField(desc,{desc=it},label={Text("Description")})}},confirmButton={TextButton({onSave(c,n,d,desc)}){Text("Save")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun SettingsScreen(onOpenFloating:()->Unit,onOpenTheme:()->Unit,onBatteryOptimization:()->Unit){
