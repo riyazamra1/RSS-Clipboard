@@ -39,6 +39,8 @@ class FloatingClipboardService : Service() {
     private var bubble: View? = null
     private var dialog: View? = null
     private var listener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    private var internalCopy: String? = null
+    private var internalCopyAt: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -51,6 +53,10 @@ class FloatingClipboardService : Service() {
             val clip = clipboard.primaryClip ?: return@OnPrimaryClipChangedListener
             val text = clip.getItemAt(0).coerceToText(this).toString().trim()
             if (text.isBlank()) return@OnPrimaryClipChangedListener
+            if (internalCopy == text && System.currentTimeMillis() - internalCopyAt < 1500L) {
+                internalCopy = null
+                return@OnPrimaryClipChangedListener
+            }
             scope.launch {
                 repository.add(text)
                 repository.deleteExpired()
@@ -147,6 +153,8 @@ class FloatingClipboardService : Service() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(8, 10, 8, 10)
                 setOnClickListener {
+                    internalCopy = item.content
+                    internalCopyAt = System.currentTimeMillis()
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("RSS Clipboard", item.content))
                     if (FloatingPrefs.closeAfterCopy(this@FloatingClipboardService)) hideDialog()
                 }
