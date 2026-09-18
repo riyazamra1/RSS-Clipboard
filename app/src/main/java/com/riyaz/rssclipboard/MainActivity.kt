@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -72,17 +73,17 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
     }}){pad->Box(Modifier.fillMaxSize().padding(pad)){AnimatedContent(targetState=screen,label="screen"){target->when(target){RssScreen.CLIPBOARD->ClipboardScreen();RssScreen.SAVED->SavedListScreen();RssScreen.SETTINGS->SettingsScreen(onOpenFloating,onOpenTheme,onBatteryOptimization)}}}}}
 }
 @Composable private fun WelcomeScreen(onRegister:(String,String)->Unit){
-    var name by remember{mutableStateOf("")};var email by remember{mutableStateOf("")};val t=rememberInfiniteTransition(label="welcome");val drift by t.animateFloat(0f,1f,infiniteRepeatable(tween(6500),RepeatMode.Reverse),label="drift")
+    var name by remember{mutableStateOf("")};var email by remember{mutableStateOf("")}
     val valid=name.trim().length>=2&&android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
     val primaryGlow = MaterialTheme.colorScheme.primary.copy(.10f)
     val secondaryGlow = MaterialTheme.colorScheme.secondary.copy(.08f)
     val backgroundBrush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(.12f),MaterialTheme.colorScheme.surface,MaterialTheme.colorScheme.secondary.copy(.10f)))
     Box(Modifier.fillMaxSize().background(backgroundBrush)){
-        Canvas(Modifier.fillMaxSize()){drawCircle(primaryGlow,260f,androidx.compose.ui.geometry.Offset(size.width*(.15f+.15f*drift),size.height*.16f));drawCircle(secondaryGlow,320f,androidx.compose.ui.geometry.Offset(size.width*(.88f-.12f*drift),size.height*.82f))}
+
         Column(Modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
-            Box(Modifier.size(86.dp).clip(RoundedCornerShape(28.dp)).background(MaterialTheme.colorScheme.primary),contentAlignment=Alignment.Center){Icon(Icons.Default.ContentPaste,null,tint=MaterialTheme.colorScheme.onPrimary,modifier=Modifier.size(44.dp))}
+            Image(painterResource(com.riyaz.rssclipboard.R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(92.dp))
             Spacer(Modifier.height(18.dp));Text("Welcome to RSS Clipboard",style=MaterialTheme.typography.headlineMedium);Text("Fast, private and organized.",style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(24.dp));ElevatedCard(shape=RoundedCornerShape(28.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("Create your profile",style=MaterialTheme.typography.titleLarge);OutlinedTextField(name,{name=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Your name")},leadingIcon={Icon(Icons.Default.Person,null)});OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Email address")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email),leadingIcon={Icon(Icons.Default.Email,null)});Button({onRegister(name,email)},enabled=valid,modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp)){Text("Get started")}}}
+            Spacer(Modifier.height(24.dp));Card(shape=RoundedCornerShape(28.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("Create your profile",style=MaterialTheme.typography.titleLarge);OutlinedTextField(name,{name=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Your name")},leadingIcon={Icon(Icons.Default.Person,null)});OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Email address")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email),leadingIcon={Icon(Icons.Default.Email,null)});Button({onRegister(name,email)},enabled=valid,modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp)){Text("Get started")}}}
             Spacer(Modifier.height(14.dp));Text("History stays on this device and expires after 24 hours.",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
