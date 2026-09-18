@@ -20,17 +20,31 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -45,87 +59,46 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.riyaz.rssclipboard.data.*
 
 class MainActivity : ComponentActivity() {
-    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startClipboardService() else FloatingPrefs.setEnabled(this, false)
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); renderApp() }
-
-    override fun onResume() {
-        super.onResume()
-        if (UserPrefs.isRegistered(this) && FloatingPrefs.enabled(this)) startClipboardService()
-    }
-
-    private fun renderApp() {
-        setContent {
-            RssClipboardTheme(ThemePrefs.get(this)) {
-                if (UserPrefs.isRegistered(this)) {
-                    RssApp(::showFloatingSettings, ::showThemeSettings, ::openBatteryOptimization)
-                } else {
-                    WelcomeScreen { name, email ->
-                        UserPrefs.register(this, name, email)
-                        startClipboardService()
-                        renderApp()
-                    }
-                }
-            }
-        }
-    }
-
-    private fun startClipboardService() {
-        if (!FloatingPrefs.notifications(this)) return
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            return
-        }
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(Intent(this, FloatingClipboardService::class.java))
-        else startService(Intent(this, FloatingClipboardService::class.java))
-    }
-
-    private fun showFloatingSettings() {
-        setContent { RssClipboardTheme(ThemePrefs.get(this)) {
-            RssApp(::showFloatingSettings, ::showThemeSettings, ::openBatteryOptimization)
-            FloatingSettingsDialog(::renderApp)
-        }}
-    }
-
-    private fun showThemeSettings() {
-        setContent { RssClipboardTheme(ThemePrefs.get(this)) {
-            RssApp(::showFloatingSettings, ::showThemeSettings, ::openBatteryOptimization)
-            ThemeSelectorDialog(::renderApp)
-        }}
-    }
-
-    private fun openBatteryOptimization() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-        val powerManager = getSystemService(PowerManager::class.java)
-        if (powerManager.isIgnoringBatteryOptimizations(packageName)) return
-        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-            data = Uri.parse("package:$packageName")
-        })
-    }
+    private val notificationPermission=registerForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)startClipboardService()else FloatingPrefs.setEnabled(this,false)}
+    override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);renderApp()}
+    override fun onResume(){super.onResume();if(UserPrefs.isRegistered(this)&&FloatingPrefs.enabled(this))startClipboardService()}
+    private fun renderApp(){setContent{RssClipboardTheme(ThemePrefs.get(this)){if(UserPrefs.isRegistered(this))RssApp(::showFloatingSettings,::showThemeSettings,::openBatteryOptimization)else WelcomeScreen{n,e->UserPrefs.register(this,n,e);startClipboardService();renderApp()}}}}
+    private fun startClipboardService(){if(!FloatingPrefs.notifications(this))return;if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS);return};if(Build.VERSION.SDK_INT>=26)startForegroundService(Intent(this,FloatingClipboardService::class.java))else startService(Intent(this,FloatingClipboardService::class.java))}
+    private fun showFloatingSettings(){setContent{RssClipboardTheme(ThemePrefs.get(this)){RssApp(::showFloatingSettings,::showThemeSettings,::openBatteryOptimization);FloatingSettingsDialog(::renderApp)}}}
+    private fun showThemeSettings(){setContent{RssClipboardTheme(ThemePrefs.get(this)){RssApp(::showFloatingSettings,::showThemeSettings,::openBatteryOptimization);ThemeSelectorDialog(::renderApp)}}}
+    private fun openBatteryOptimization(){if(Build.VERSION.SDK_INT<Build.VERSION_CODES.M)return;val pm=getSystemService(PowerManager::class.java);if(pm.isIgnoringBatteryOptimizations(packageName))return;startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply{data=Uri.parse("package:$packageName")})}
 }
 private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 
-@Composable private fun RssApp(onOpenFloating: () -> Unit, onOpenTheme: () -> Unit, onBatteryOptimization: () -> Unit) {
-    var screen by remember { mutableStateOf(RssScreen.CLIPBOARD) }
-    Scaffold(bottomBar = {
-        NavigationBar {
-            NavigationBarItem(selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD},icon={Icon(Icons.Default.ContentPaste,"Clipboard")},label={Text("Clipboard")})
-            NavigationBarItem(selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED},icon={Icon(Icons.Default.Bookmark,"Saved")},label={Text("Saved")})
-            NavigationBarItem(selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS},icon={Icon(Icons.Default.Settings,"Settings")},label={Text("Settings")})
-        }
-    }) { pad ->
-        Box(Modifier.fillMaxSize().padding(pad)) {
-            when(screen) {
-                RssScreen.CLIPBOARD -> ClipboardScreen()
-                RssScreen.SAVED -> SavedListScreen()
-                RssScreen.SETTINGS -> SettingsScreen(onOpenFloating,onOpenTheme,onBatteryOptimization)
-            }
+@Composable private fun RssApp(onOpenFloating:()->Unit,onOpenTheme:()->Unit,onBatteryOptimization:()->Unit){
+    var screen by remember{mutableStateOf(RssScreen.CLIPBOARD)}
+    val drawerState=rememberDrawerState(DrawerValue.Closed);val scope=rememberCoroutineScope()
+    ModalNavigationDrawer(drawerState=drawerState,drawerContent={ModalDrawerSheet{Column(Modifier.fillMaxHeight().padding(18.dp)){
+        Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.primary),contentAlignment=Alignment.Center){Icon(Icons.Default.ContentPaste,null,tint=MaterialTheme.colorScheme.onPrimary,modifier=Modifier.size(32.dp))};Spacer(Modifier.width(12.dp));Column{Text("RSS Clipboard",style=MaterialTheme.typography.titleLarge);Text(UserPrefs.name(LocalContext.current),style=MaterialTheme.typography.bodySmall)}}
+        Spacer(Modifier.height(26.dp))
+        NavigationDrawerItem(label={Text("Clipboard")},selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD;scope.launch{drawerState.close()}},icon={Icon(Icons.Default.ContentPaste,null)})
+        NavigationDrawerItem(label={Text("Saved List")},selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED;scope.launch{drawerState.close()}},icon={Icon(Icons.Default.Bookmark,null)})
+        NavigationDrawerItem(label={Text("Settings")},selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS;scope.launch{drawerState.close()}},icon={Icon(Icons.Default.Settings,null)})
+        Spacer(Modifier.weight(1f));Text("RSS Clipboard • v1.0.0",style=MaterialTheme.typography.labelSmall)
+    }}}){Scaffold(topBar={CenterAlignedTopAppBar(title={Text(when(screen){RssScreen.CLIPBOARD->"Clipboard";RssScreen.SAVED->"Saved List";RssScreen.SETTINGS->"Settings"})},navigationIcon={IconButton({scope.launch{drawerState.open()}}){Icon(Icons.Default.Menu,"Menu")}})},bottomBar={NavigationBar{
+        NavigationBarItem(screen==RssScreen.CLIPBOARD,{screen=RssScreen.CLIPBOARD},{Icon(Icons.Default.ContentPaste,null)},{Text("Clipboard")})
+        NavigationBarItem(screen==RssScreen.SAVED,{screen=RssScreen.SAVED},{Icon(Icons.Default.Bookmark,null)},{Text("Saved")})
+        NavigationBarItem(screen==RssScreen.SETTINGS,{screen=RssScreen.SETTINGS},{Icon(Icons.Default.Settings,null)},{Text("Settings")})
+    }}){pad->Box(Modifier.fillMaxSize().padding(pad)){AnimatedContent(targetState=screen,label="screen"){target->when(target){RssScreen.CLIPBOARD->ClipboardScreen();RssScreen.SAVED->SavedListScreen();RssScreen.SETTINGS->SettingsScreen(onOpenFloating,onOpenTheme,onBatteryOptimization)}}}}}
+}
+@Composable private fun WelcomeScreen(onRegister:(String,String)->Unit){
+    var name by remember{mutableStateOf("")};var email by remember{mutableStateOf("")};val t=rememberInfiniteTransition(label="welcome");val drift by t.animateFloat(0f,1f,infiniteRepeatable(tween(6500),RepeatMode.Reverse),label="drift")
+    val valid=name.trim().length>=2&&android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(.12f),MaterialTheme.colorScheme.surface,MaterialTheme.colorScheme.secondary.copy(.10f))))){
+        Canvas(Modifier.fillMaxSize()){drawCircle(MaterialTheme.colorScheme.primary.copy(.10f),260f,androidx.compose.ui.geometry.Offset(size.width*(.15f+.15f*drift),size.height*.16f));drawCircle(MaterialTheme.colorScheme.secondary.copy(.08f),320f,androidx.compose.ui.geometry.Offset(size.width*(.88f-.12f*drift),size.height*.82f))}
+        Column(Modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
+            Box(Modifier.size(86.dp).clip(RoundedCornerShape(28.dp)).background(MaterialTheme.colorScheme.primary),contentAlignment=Alignment.Center){Icon(Icons.Default.ContentPaste,null,tint=MaterialTheme.colorScheme.onPrimary,modifier=Modifier.size(44.dp))}
+            Spacer(Modifier.height(18.dp));Text("Welcome to RSS Clipboard",style=MaterialTheme.typography.headlineMedium);Text("Fast, private and organized.",style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(24.dp));ElevatedCard(shape=RoundedCornerShape(28.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("Create your profile",style=MaterialTheme.typography.titleLarge);OutlinedTextField(name,{name=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Your name")},leadingIcon={Icon(Icons.Default.Person,null)});OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Email address")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email),leadingIcon={Icon(Icons.Default.Email,null)});Button({onRegister(name,email)},enabled=valid,modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp)){Text("Get started")}}}
+            Spacer(Modifier.height(14.dp));Text("History stays on this device and expires after 24 hours.",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun ClipboardScreen(vm: MainViewModel = viewModel()) {
     val items by vm.visibleItems.collectAsState(); val query by vm.query.collectAsState(); var showClear by remember { mutableStateOf(false) }; var editing by remember { mutableStateOf<ClipboardItem?>(null) }; var saving by remember { mutableStateOf<ClipboardItem?>(null) }; val clipboard=LocalClipboardManager.current
