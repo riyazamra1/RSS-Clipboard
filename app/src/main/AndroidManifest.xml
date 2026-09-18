@@ -10,11 +10,11 @@
     <application
         android:allowBackup="true"
         android:label="RSS Clipboard"
-        android:icon="@drawable/ic_launcher"
-        android:roundIcon="@drawable/ic_launcher"
+        android:icon="@drawable/rss_clipboard_logo"
+        android:roundIcon="@drawable/rss_clipboard_logo"
         android:supportsRtl="true"
-        android:theme="@style/Theme.RSSClipboard">
-        <activity android:name=".MainActivity" android:exported="true">
+        android:theme="@style/Theme.RSSClipboard.Splash">
+        <activity android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.RSSClipboard.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
