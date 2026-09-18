@@ -88,7 +88,7 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
     val items by vm.visibleItems.collectAsState(); val query by vm.query.collectAsState(); var showClear by remember { mutableStateOf(false) }; var editing by remember { mutableStateOf<ClipboardItem?>(null) }; var saving by remember { mutableStateOf<ClipboardItem?>(null) }; val clipboard=LocalClipboardManager.current
     Scaffold(topBar={TopAppBar(title={Text("RSS Clipboard")},actions={IconButton({showClear=true}){Icon(Icons.Default.DeleteSweep,"Clear")}})}) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(horizontal=12.dp)) {
-            OutlinedTextField(query,vm::setQuery,Modifier.fillMaxWidth(),singleLine=true,label={Text("Search clipboard")}); Spacer(Modifier.height(8.dp)); FilterRow(vm); Spacer(Modifier.height(8.dp))
+            OutlinedTextField(query,vm::setQuery,Modifier.fillMaxWidth(),singleLine=true,label={Text("Search clipboard")}); Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){FilledTonalButton(onClick={clipboard.getText()?.text?.let{if(it.isNotBlank())vm.add(it)}},modifier=Modifier.weight(1f)){Icon(Icons.Default.ContentPaste,null);Spacer(Modifier.width(6.dp));Text("Capture current")};FilterRow(vm)}; Spacer(Modifier.height(8.dp))
             if(items.isEmpty()) Text("No clipboard items yet",Modifier.padding(16.dp)) else LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){itemsIndexed(items,key={_,it->it.id}){index,item->ClipboardCard(index+1,item,{clipboard.setText(AnnotatedString(item.content))},{vm.togglePin(item)},{vm.delete(item)},{editing=item},{saving=item})}}
         }
     }
@@ -112,9 +112,8 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
     Scaffold(topBar={TopAppBar(title={Text("Settings")})}){pad->Column(Modifier.fillMaxSize().padding(pad).padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
         SettingsRow(Icons.Default.BubbleChart,"Floating Clipboard", "Overlay, auto-hide and dialog options",onOpenFloating)
         SettingsRow(Icons.Default.BatteryChargingFull,"Battery Optimization", if (batteryOptimized) "Allow RSS Clipboard to stay active with less background restriction" else "Optimized for always-on background operation",onBatteryOptimization)
-        SettingsRow(Icons.Default.Notifications,"Notifications", if (FloatingPrefs.notifications(context)) "On — required while Floating Clipboard is active" else "Off — Floating Clipboard will remain stopped",{
-            val next=!FloatingPrefs.notifications(context); FloatingPrefs.setNotifications(context,next)
-            if (!next) { FloatingPrefs.setEnabled(context,false); context.stopService(Intent(context,FloatingClipboardService::class.java)) }
+        SettingsRow(Icons.Default.Notifications,"Notifications", if (FloatingPrefs.notifications(context)) "On — foreground notification preference" else "Off — clipboard capture continues",{
+            FloatingPrefs.setNotifications(context,!FloatingPrefs.notifications(context))
         })
         SettingsRow(Icons.Default.Palette,"Theme", "Windows, Ubuntu, Android, macOS, iOS and more",onOpenTheme)
     }}
