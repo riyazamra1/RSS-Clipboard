@@ -9,6 +9,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
+import android.view.MotionEvent
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
@@ -76,13 +80,9 @@ class FloatingClipboardService : Service() {
 
     private fun showBubble() {
         if (bubble != null || !Settings.canDrawOverlays(this)) return
-        val view = TextView(this).apply {
-            text = "📋"
-            textSize = 22f
-            gravity = Gravity.CENTER
-            setBackgroundResource(android.R.drawable.btn_default)
-            setPadding(18, 12, 18, 12)
-            setOnClickListener { showDialog(); resetHideTimer() }
+        val view = FloatingBubbleView(this) {
+            showDialog()
+            resetHideTimer()
         }
         bubble = view
         windowManager.addView(view, bubbleParams())
