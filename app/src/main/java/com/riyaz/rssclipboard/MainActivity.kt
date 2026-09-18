@@ -180,7 +180,11 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
     fun restart(){context.stopService(Intent(context,FloatingClipboardService::class.java));if(enabled){if(Build.VERSION.SDK_INT>=26)context.startForegroundService(Intent(context,FloatingClipboardService::class.java))else context.startService(Intent(context,FloatingClipboardService::class.java))}}
     AlertDialog(onDismissRequest=onDismiss,title={Text("Clipboard monitoring")},text={Column(verticalArrangement=Arrangement.spacedBy(4.dp)){
         SettingSwitch("Capture new copies",enabled){enabled=it;FloatingPrefs.setEnabled(context,it);restart()}
-        SettingSwitch("Show floating shortcut",bubble){bubble=it;FloatingPrefs.setShowBubble(context,it);restart()}
+        SettingSwitch("Show floating shortcut",bubble){bubble=it;FloatingPrefs.setShowBubble(context,it);restart()
+            if(it && !Settings.canDrawOverlays(context)){
+                context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:"+context.packageName)))
+            }
+        }
         SettingSwitch("Auto-hide shortcut",autoHide){autoHide=it;FloatingPrefs.setAutoHide(context,it);restart()}
         Text("Hide after",style=MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf(3,5,10,15).forEach{seconds->FilterChip(timer==seconds,{timer=seconds;FloatingPrefs.setHideTimerSeconds(context,seconds);restart()},label={Text(seconds.toString()+"s")})}}
