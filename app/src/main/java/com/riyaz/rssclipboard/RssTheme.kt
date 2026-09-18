@@ -3,6 +3,12 @@ package com.riyaz.rssclipboard
 import android.os.Build
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -36,5 +42,21 @@ fun RssClipboardTheme(theme: AppTheme, content: @Composable () -> Unit) {
             if (systemDark) darkColorScheme() else lightColorScheme()
         }
     }
-    MaterialTheme(colorScheme = scheme, content = content)
+    val shapes = when (theme) {
+        AppTheme.IOS -> Shapes(small=RoundedCornerShape(14.dp),medium=RoundedCornerShape(20.dp),large=RoundedCornerShape(28.dp))
+        AppTheme.MACOS -> Shapes(small=RoundedCornerShape(10.dp),medium=RoundedCornerShape(14.dp),large=RoundedCornerShape(20.dp))
+        AppTheme.WINDOWS -> Shapes(small=RoundedCornerShape(6.dp),medium=RoundedCornerShape(10.dp),large=RoundedCornerShape(14.dp))
+        AppTheme.LINUX -> Shapes(small=RoundedCornerShape(8.dp),medium=RoundedCornerShape(14.dp),large=RoundedCornerShape(20.dp))
+        AppTheme.ANDROID -> Shapes(small=RoundedCornerShape(10.dp),medium=RoundedCornerShape(18.dp),large=RoundedCornerShape(24.dp))
+        AppTheme.CLASSIC -> Shapes(small=RoundedCornerShape(4.dp),medium=RoundedCornerShape(8.dp),large=RoundedCornerShape(12.dp))
+        AppTheme.SYSTEM -> Shapes()
+    }
+    val typography = when (theme) {
+        AppTheme.IOS -> Typography().copy(titleLarge=Typography().titleLarge.copy(fontWeight=FontWeight.SemiBold,letterSpacing=(-0.2).sp))
+        AppTheme.WINDOWS -> Typography().copy(titleLarge=Typography().titleLarge.copy(fontWeight=FontWeight.SemiBold),labelLarge=Typography().labelLarge.copy(fontWeight=FontWeight.SemiBold))
+        AppTheme.MACOS -> Typography().copy(titleLarge=Typography().titleLarge.copy(fontWeight=FontWeight.SemiBold))
+        AppTheme.LINUX -> Typography().copy(titleLarge=Typography().titleLarge.copy(fontWeight=FontWeight.Bold))
+        else -> Typography()
+    }
+    MaterialTheme(colorScheme = scheme, shapes = shapes, typography = typography, content = content)
 }
