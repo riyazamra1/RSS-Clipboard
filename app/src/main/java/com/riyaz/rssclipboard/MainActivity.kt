@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
 }
 private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun RssApp(onOpenFloating:()->Unit,onOpenTheme:()->Unit,onBatteryOptimization:()->Unit){
     var screen by remember{mutableStateOf(RssScreen.CLIPBOARD)}
     val drawerState=rememberDrawerState(DrawerValue.Closed);val scope=rememberCoroutineScope()
@@ -73,8 +74,11 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 @Composable private fun WelcomeScreen(onRegister:(String,String)->Unit){
     var name by remember{mutableStateOf("")};var email by remember{mutableStateOf("")};val t=rememberInfiniteTransition(label="welcome");val drift by t.animateFloat(0f,1f,infiniteRepeatable(tween(6500),RepeatMode.Reverse),label="drift")
     val valid=name.trim().length>=2&&android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(.12f),MaterialTheme.colorScheme.surface,MaterialTheme.colorScheme.secondary.copy(.10f))))){
-        Canvas(Modifier.fillMaxSize()){drawCircle(MaterialTheme.colorScheme.primary.copy(.10f),260f,androidx.compose.ui.geometry.Offset(size.width*(.15f+.15f*drift),size.height*.16f));drawCircle(MaterialTheme.colorScheme.secondary.copy(.08f),320f,androidx.compose.ui.geometry.Offset(size.width*(.88f-.12f*drift),size.height*.82f))}
+    val primaryGlow = MaterialTheme.colorScheme.primary.copy(.10f)
+    val secondaryGlow = MaterialTheme.colorScheme.secondary.copy(.08f)
+    val backgroundBrush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(.12f),MaterialTheme.colorScheme.surface,MaterialTheme.colorScheme.secondary.copy(.10f)))
+    Box(Modifier.fillMaxSize().background(backgroundBrush)){
+        Canvas(Modifier.fillMaxSize()){drawCircle(primaryGlow,260f,androidx.compose.ui.geometry.Offset(size.width*(.15f+.15f*drift),size.height*.16f));drawCircle(secondaryGlow,320f,androidx.compose.ui.geometry.Offset(size.width*(.88f-.12f*drift),size.height*.82f))}
         Column(Modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
             Box(Modifier.size(86.dp).clip(RoundedCornerShape(28.dp)).background(MaterialTheme.colorScheme.primary),contentAlignment=Alignment.Center){Icon(Icons.Default.ContentPaste,null,tint=MaterialTheme.colorScheme.onPrimary,modifier=Modifier.size(44.dp))}
             Spacer(Modifier.height(18.dp));Text("Welcome to RSS Clipboard",style=MaterialTheme.typography.headlineMedium);Text("Fast, private and organized.",style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -95,6 +99,46 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
     if(showClear) AlertDialog(onDismissRequest={showClear=false},title={Text("Clear clipboard history?")},text={Text("This removes clipboard history only. Your Saved List is kept permanently.")},confirmButton={TextButton({vm.clearAll();showClear=false}){Text("Clear")}},dismissButton={TextButton({showClear=false}){Text("Cancel")}})
     editing?.let{item->var text by remember(item.id){mutableStateOf(item.content)};AlertDialog(onDismissRequest={editing=null},title={Text("Edit item")},text={OutlinedTextField(text,{text=it},minLines=3)},confirmButton={TextButton({vm.update(item,text);editing=null}){Text("Save")}},dismissButton={TextButton({editing=null}){Text("Cancel")}})}
     saving?.let{item->SaveToListDialog(item.content){saving=null}}
+}
+
+@Composable private fun ClipboardCard(
+    index: Int,
+    item: ClipboardItem,
+    onCopy: () -> Unit,
+    onPin: () -> Unit,
+    onDelete: () -> Unit,
+    onEdit: () -> Unit,
+    onSave: () -> Unit
+) {
+    Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("#$index • \${item.type.name}", style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    IconButton(onClick = onPin) {
+                        Icon(Icons.Default.PushPin, if (item.pinned) "Unpin" else "Pin")
+                    }
+                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete") }
+                }
+            }
+            Text(
+                item.content,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                maxLines = 8,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                "Expires in 24 hours\${if (item.pinned) " • Pinned" else ""}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onCopy) { Text("Copy") }
+                TextButton(onClick = onEdit) { Text("Edit") }
+                TextButton(onClick = onSave) { Text("Save") }
+            }
+        }
+    }
 }
 
 @Composable private fun SaveToListDialog(initialData:String,onDismiss:()->Unit){val vm:SavedListViewModel=viewModel();var category by remember{mutableStateOf("General")};var fileName by remember{mutableStateOf("")};var data by remember(initialData){mutableStateOf(initialData)};var description by remember{mutableStateOf("")};AlertDialog(onDismissRequest=onDismiss,title={Text("Save to List")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text("Permanent Saved List item. It will not expire with clipboard history.",style=MaterialTheme.typography.bodySmall);OutlinedTextField(category,{category=it},label={Text("Category")},singleLine=true);OutlinedTextField(fileName,{fileName=it},label={Text("File name")},singleLine=true);OutlinedTextField(data,{data=it},label={Text("Data")},minLines=3);OutlinedTextField(description,{description=it},label={Text("Description")},minLines=2)}},confirmButton={TextButton({vm.add(category,fileName,data,description);onDismiss()}){Text("Save")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})}
