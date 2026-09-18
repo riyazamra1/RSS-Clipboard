@@ -146,14 +146,25 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun SettingsScreen(onOpenFloating:()->Unit,onOpenTheme:()->Unit,onBatteryOptimization:()->Unit){
     val context=LocalContext.current
-    val batteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) !(context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) ?: false) else false
-    Scaffold(topBar={TopAppBar(title={Text("Settings")})}){pad->Column(Modifier.fillMaxSize().padding(pad).padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-        SettingsRow(Icons.Default.BubbleChart,"Floating Clipboard", "Overlay, auto-hide and dialog options",onOpenFloating)
-        SettingsRow(Icons.Default.BatteryChargingFull,"Battery Optimization", if (batteryOptimized) "Allow RSS Clipboard to stay active with less background restriction" else "Optimized for always-on background operation",onBatteryOptimization)
-        SettingsRow(Icons.Default.Notifications,"Notifications", if (FloatingPrefs.notifications(context)) "On — foreground notification preference" else "Off — clipboard capture continues",{
-            FloatingPrefs.setNotifications(context,!FloatingPrefs.notifications(context))
-        })
-        SettingsRow(Icons.Default.Palette,"Theme", "Windows, Ubuntu, Android, macOS, iOS and more",onOpenTheme)
+    val batteryOptimized=if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.M) !(context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) ?: false) else false
+    Scaffold(topBar={TopAppBar(title={Text("Settings")})}){pad->Column(Modifier.fillMaxSize().padding(pad).padding(horizontal=14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Card(shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){
+            Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)){
+                Image(painterResource(com.riyaz.rssclipboard.R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(62.dp))
+                Column{Text("RSS Clipboard",style=MaterialTheme.typography.titleLarge);Text(UserPrefs.name(context),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+            }
+        }
+        SettingsRow(Icons.Default.BubbleChart,"Floating Clipboard","Overlay, auto-hide and dialog options",onOpenFloating)
+        SettingsRow(Icons.Default.BatteryChargingFull,"Battery Optimization",if(batteryOptimized)"Allow RSS Clipboard to stay active with less background restriction" else "Optimized for always-on background operation",onBatteryOptimization)
+        SettingsRow(Icons.Default.Notifications,"Notifications",if(FloatingPrefs.notifications(context))"On — foreground notification preference" else "Off — clipboard capture continues",{FloatingPrefs.setNotifications(context,!FloatingPrefs.notifications(context))})
+        SettingsRow(Icons.Default.Palette,"Theme","Windows, Ubuntu, Android, macOS, iOS and more",onOpenTheme)
+        Spacer(Modifier.weight(1f))
+        Column(Modifier.fillMaxWidth().padding(bottom=18.dp),horizontalAlignment=Alignment.CenterHorizontally){
+            Image(painterResource(com.riyaz.rssclipboard.R.drawable.rss_clipboard_logo),"Razeen Secure Solution",Modifier.size(56.dp))
+            Spacer(Modifier.height(6.dp));Text("Razeen Secure Solution",style=MaterialTheme.typography.titleSmall)
+            Text("RSS • Mobile & PC Software • CCTV • Networking • System Administration",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("www.rsscctvsolution.eu.cc",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }}
 }
 @Composable private fun SettingsRow(icon:androidx.compose.ui.graphics.vector.ImageVector,title:String,subtitle:String,onClick:()->Unit){Card(onClick=onClick,modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(14.dp)){Icon(icon,title);Column{Text(title,style=MaterialTheme.typography.titleMedium);Text(subtitle,style=MaterialTheme.typography.bodySmall)}}}}
