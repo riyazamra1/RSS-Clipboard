@@ -41,6 +41,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.text.KeyboardOptions
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.riyaz.rssclipboard.data.*
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val notificationPermission=registerForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)startClipboardService()else FloatingPrefs.setEnabled(this,false)}
@@ -81,9 +83,9 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
         NavigationDrawerItem(label={Text("Settings")},selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS;scope.launch{drawerState.close()}},icon={Icon(Icons.Default.Settings,null)})
         Spacer(Modifier.weight(1f));Text("RSS Clipboard • v1.0.0",style=MaterialTheme.typography.labelSmall)
     }}}){Scaffold(topBar={CenterAlignedTopAppBar(title={Text(when(screen){RssScreen.CLIPBOARD->"Clipboard";RssScreen.SAVED->"Saved List";RssScreen.SETTINGS->"Settings"})},navigationIcon={IconButton({scope.launch{drawerState.open()}}){Icon(Icons.Default.Menu,"Menu")}})},bottomBar={NavigationBar{
-        NavigationBarItem(screen==RssScreen.CLIPBOARD,{screen=RssScreen.CLIPBOARD},{Icon(Icons.Default.ContentPaste,null)},{Text("Clipboard")})
-        NavigationBarItem(screen==RssScreen.SAVED,{screen=RssScreen.SAVED},{Icon(Icons.Default.Bookmark,null)},{Text("Saved")})
-        NavigationBarItem(screen==RssScreen.SETTINGS,{screen=RssScreen.SETTINGS},{Icon(Icons.Default.Settings,null)},{Text("Settings")})
+        NavigationBarItem(selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD},icon={Icon(Icons.Default.ContentPaste,null)},label={Text("Clipboard")})
+        NavigationBarItem(selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED},icon={Icon(Icons.Default.Bookmark,null)},label={Text("Saved")})
+        NavigationBarItem(selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS},icon={Icon(Icons.Default.Settings,null)},label={Text("Settings")})
     }}){pad->Box(Modifier.fillMaxSize().padding(pad)){AnimatedContent(targetState=screen,label="screen"){target->when(target){RssScreen.CLIPBOARD->ClipboardScreen();RssScreen.SAVED->SavedListScreen();RssScreen.SETTINGS->SettingsScreen(onOpenFloating,onOpenTheme,onBatteryOptimization)}}}}}
 }
 @Composable private fun WelcomeScreen(onRegister:(String,String)->Unit){
