@@ -14,12 +14,12 @@ object FloatingPrefs {
     private const val NOTIFICATIONS = "notifications"
 
     private fun prefs(context: Context) = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
-    fun enabled(context: Context) = prefs(context).getBoolean(ENABLED, false)
+    fun enabled(context: Context) = prefs(context).getBoolean(ENABLED, true)
     fun showBubble(context: Context) = prefs(context).getBoolean(SHOW_BUBBLE, true)
     fun openOnCopy(context: Context) = prefs(context).getBoolean(OPEN_ON_COPY, false)
     fun closeAfterCopy(context: Context) = prefs(context).getBoolean(CLOSE_AFTER_COPY, true)
-    fun autoHide(context: Context) = prefs(context).getBoolean(AUTO_HIDE, false)
-    fun hideTimerSeconds(context: Context) = prefs(context).getInt(HIDE_TIMER, 15)
+    fun autoHide(context: Context) = prefs(context).getBoolean(AUTO_HIDE, true)
+    fun hideTimerSeconds(context: Context) = prefs(context).getInt(HIDE_TIMER, 5)
     fun size(context: Context) = prefs(context).getString(SIZE, "medium") ?: "medium"
     fun notifications(context: Context) = prefs(context).getBoolean(NOTIFICATIONS, true)
     fun setEnabled(context: Context, value: Boolean) = prefs(context).edit().putBoolean(ENABLED, value).apply()
@@ -27,7 +27,7 @@ object FloatingPrefs {
     fun setOpenOnCopy(context: Context, value: Boolean) = prefs(context).edit().putBoolean(OPEN_ON_COPY, value).apply()
     fun setCloseAfterCopy(context: Context, value: Boolean) = prefs(context).edit().putBoolean(CLOSE_AFTER_COPY, value).apply()
     fun setAutoHide(context: Context, value: Boolean) = prefs(context).edit().putBoolean(AUTO_HIDE, value).apply()
-    fun setHideTimerSeconds(context: Context, value: Int) = prefs(context).edit().putInt(HIDE_TIMER, value).apply()
+    fun setHideTimerSeconds(context: Context, value: Int) = prefs(context).edit().putInt(HIDE_TIMER, value.coerceIn(3, 60)).apply()
     fun setSize(context: Context, value: String) = prefs(context).edit().putString(SIZE, value).apply()
     fun setNotifications(context: Context, value: Boolean) = prefs(context).edit().putBoolean(NOTIFICATIONS, value).apply()
 }
