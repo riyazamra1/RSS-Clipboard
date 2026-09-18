@@ -20,20 +20,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -46,12 +37,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -141,7 +127,22 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 
 @Composable private fun ThemeSelectorDialog(onDismiss:()->Unit){val context=LocalContext.current;var selected by remember{mutableStateOf(ThemePrefs.get(context))};AlertDialog(onDismissRequest=onDismiss,title={Text("Theme")},text={Column(verticalArrangement=Arrangement.spacedBy(6.dp)){Text("Choose the visual style for RSS Clipboard.",style=MaterialTheme.typography.bodySmall);AppTheme.entries.forEach{theme->FilterChip(selected=selected==theme,onClick={selected=theme;ThemePrefs.set(context,theme);(context as? Activity)?.recreate();onDismiss()},label={Text(theme.label)},modifier=Modifier.fillMaxWidth())}}},confirmButton={TextButton(onClick=onDismiss){Text("Done")}})}
 
-@Composable private fun FloatingSettingsDialog(onDismiss:()->Unit,onEnable:()->Unit,onDisable:()->Unit){val context=LocalContext.current;var enabled by remember{mutableStateOf(FloatingPrefs.enabled(context))};var bubble by remember{mutableStateOf(FloatingPrefs.showBubble(context))};var openOnCopy by remember{mutableStateOf(FloatingPrefs.openOnCopy(context))};var closeAfterCopy by remember{mutableStateOf(FloatingPrefs.closeAfterCopy(context))};var autoHide by remember{mutableStateOf(FloatingPrefs.autoHide(context))};var hideTimer by remember{mutableStateOf(FloatingPrefs.hideTimerSeconds(context))};var size by remember{mutableStateOf(FloatingPrefs.size(context))};AlertDialog(onDismissRequest=onDismiss,title={Text("Floating clipboard")},text={Column(verticalArrangement=Arrangement.spacedBy(2.dp)){Text("Runs as a foreground service while enabled. A visible service notification is required.",style=MaterialTheme.typography.bodySmall);SettingSwitch("Floating clipboard",enabled){enabled=it;if(it)onEnable()else onDisable()};SettingSwitch("Show floating button",bubble){bubble=it;FloatingPrefs.setShowBubble(context,it)};SettingSwitch("Open list when something is copied",openOnCopy){openOnCopy=it;FloatingPrefs.setOpenOnCopy(context,it)};SettingSwitch("Close after copying an item",closeAfterCopy){closeAfterCopy=it;FloatingPrefs.setCloseAfterCopy(context,it)};SettingSwitch("Auto-hide floating button",autoHide){autoHide=it;FloatingPrefs.setAutoHide(context,it)};SettingSwitch("Notifications",FloatingPrefs.notifications(context)){value->FloatingPrefs.setNotifications(context,value);if(!value){FloatingPrefs.setEnabled(context,false);context.stopService(Intent(context,FloatingClipboardService::class.java))}};Text("Hide timer",style=MaterialTheme.typography.labelLarge);Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){listOf(5,15,30,60).forEach{seconds->FilterChip(selected=hideTimer==seconds,onClick={hideTimer=seconds;FloatingPrefs.setHideTimerSeconds(context,seconds)},label={Text("${seconds}s")})}};Text("Dialog size",style=MaterialTheme.typography.labelLarge);Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf("small","medium","large").forEach{value->FilterChip(selected=size==value,onClick={size=value;FloatingPrefs.setSize(context,value)},label={Text(value.replaceFirstChar{it.uppercase()})})}}}},confirmButton={TextButton(onClick=onDismiss){Text("Done")}})}
+@Composable private fun FloatingSettingsDialog(onDismiss:()->Unit){
+    val context=LocalContext.current
+    var enabled by remember{mutableStateOf(FloatingPrefs.enabled(context))}
+    var bubble by remember{mutableStateOf(FloatingPrefs.showBubble(context))}
+    var autoHide by remember{mutableStateOf(FloatingPrefs.autoHide(context))}
+    var timer by remember{mutableStateOf(FloatingPrefs.hideTimerSeconds(context))}
+    fun restart(){context.stopService(Intent(context,FloatingClipboardService::class.java));if(enabled&&FloatingPrefs.notifications(context)){if(Build.VERSION.SDK_INT>=26)context.startForegroundService(Intent(context,FloatingClipboardService::class.java))else context.startService(Intent(context,FloatingClipboardService::class.java))}}
+    AlertDialog(onDismissRequest=onDismiss,title={Text("Clipboard monitoring")},text={Column(verticalArrangement=Arrangement.spacedBy(4.dp)){
+        SettingSwitch("Capture new copies",enabled){enabled=it;FloatingPrefs.setEnabled(context,it);restart()}
+        SettingSwitch("Show floating shortcut",bubble){bubble=it;FloatingPrefs.setShowBubble(context,it);restart()}
+        SettingSwitch("Auto-hide shortcut",autoHide){autoHide=it;FloatingPrefs.setAutoHide(context,it);restart()}
+        Text("Hide after",style=MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf(3,5,10,15).forEach{seconds->FilterChip(timer==seconds,{timer=seconds;FloatingPrefs.setHideTimerSeconds(context,seconds);restart()},label={Text(seconds.toString()+"s")})}}
+        Text("The clipboard monitor works without the floating shortcut.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    }},confirmButton={TextButton(onClick=onDismiss){Text("Done")}})
+}
 @Composable private fun SettingSwitch(label:String,checked:Boolean,onCheckedChange:(Boolean)->Unit){Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text(label,Modifier.weight(1f));Switch(checked,onCheckedChange)}}
 @Composable private fun FilterRow(vm:MainViewModel){val filter by vm.filter.collectAsState();Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()){FilterChip(selected=filter==null,onClick={vm.setFilter(null)},label={Text("All")});FilterChip(selected=filter==ClipboardType.TEXT,onClick={vm.setFilter(ClipboardType.TEXT)},label={Text("Text")});FilterChip(selected=filter==ClipboardType.URL,onClick={vm.setFilter(ClipboardType.URL)},label={Text("URLs")});FilterChip(selected=filter==ClipboardType.EMAIL,onClick={vm.setFilter(ClipboardType.EMAIL)},label={Text("Email")});FilterChip(selected=filter==ClipboardType.PHONE,onClick={vm.setFilter(ClipboardType.PHONE)},label={Text("Phone")})}}@Composable
 private fun RssApp(onOpenFloating: () -> Unit, onOpenTheme: () -> Unit, onBatteryOptimization: () -> Unit) {
