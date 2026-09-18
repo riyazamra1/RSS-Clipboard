@@ -1,3 +1,21 @@
+
+import java.net.URL
+import java.io.FileOutputStream
+
+val downloadRssOriginalLogo by tasks.registering {
+    val output = file("src/main/res/drawable/rss_original_logo.png")
+    outputs.file(output)
+    doLast {
+        output.parentFile.mkdirs()
+        URL("https://raw.githubusercontent.com/riyazamra1/RSS-Data-Recovery/main/app/src/main/res/drawable/rss_original_logo.png").openStream().use { input ->
+            FileOutputStream(output).use { outputStream -> input.copyTo(outputStream) }
+        }
+        check(output.length() > 100_000) { "RSS original logo download failed or is incomplete" }
+    }
+}
+
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadRssOriginalLogo) }
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
