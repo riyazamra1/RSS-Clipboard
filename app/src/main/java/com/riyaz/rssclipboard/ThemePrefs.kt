@@ -18,8 +18,8 @@ object ThemePrefs {
 
     fun get(context: Context): AppTheme {
         val value = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
-            .getString(KEY, AppTheme.LINUX.name) ?: AppTheme.LINUX.name
-        return runCatching { AppTheme.valueOf(value) }.getOrDefault(AppTheme.LINUX)
+            .getString(KEY, AppTheme.SYSTEM.name) ?: AppTheme.LINUX.name
+        return runCatching { AppTheme.valueOf(value) }.getOrDefault(AppTheme.SYSTEM)
     }
 
     fun set(context: Context, theme: AppTheme) {
