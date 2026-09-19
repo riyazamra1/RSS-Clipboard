@@ -1,30 +1,3 @@
-import java.io.File
-
-val syncRssBrandAssets by tasks.registering {
-    val sourceDir = rootProject.file("rss-brand-kit/brand/logo")
-    val outputDir = file("src/main/res/drawable")
-    outputs.files(
-        outputDir.resolve("rss_main_logo.png"),
-        outputDir.resolve("rss_logo_only.png"),
-        outputDir.resolve("rss_favicon.png")
-    )
-    doLast {
-        check(sourceDir.isDirectory) { "RSS-Brand-Kit submodule is missing. Initialize/update submodules before building." }
-        val assets = mapOf(
-            "RSS Logo with Name Transparent.png" to "rss_main_logo.png",
-            "RSS Logo Only.png" to "rss_logo_only.png",
-            "RSS Logo Favicon.png" to "rss_favicon.png"
-        )
-        assets.forEach { (source, target) ->
-            val input = sourceDir.resolve(source)
-            check(input.isFile) { "Missing RSS Brand Kit asset: $source" }
-            input.copyTo(outputDir.resolve(target), overwrite = true)
-        }
-    }
-}
-
-tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(syncRssBrandAssets) }
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -59,7 +32,6 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.17.0")
-    implementation("com.riyaz.rss.common:rss-common:0.1.1")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
