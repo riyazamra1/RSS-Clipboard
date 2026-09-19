@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.riyaz.rssclipboard.data.*
+import kotlinx.coroutines.launch
 
 class ClipboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -116,12 +117,10 @@ private fun startMonitor(context: Context) {
     )
     Column(Modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         Spacer(Modifier.height(44.dp));Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(112.dp));Spacer(Modifier.height(24.dp))
-        AnimatedContent(page,label="welcome") { p ->
-            Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                Surface(Modifier.size(78.dp),shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer){Box(contentAlignment=Alignment.Center){Icon(pages[p].first,pages[p].second,Modifier.size(42.dp),tint=MaterialTheme.colorScheme.primary)}}
-                Spacer(Modifier.height(20.dp));Text(pages[p].second,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
-                Spacer(Modifier.height(10.dp));Text(pages[p].third,textAlign=TextAlign.Center,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        Column(horizontalAlignment=Alignment.CenterHorizontally) {
+            Surface(Modifier.size(78.dp),shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer){Box(contentAlignment=Alignment.Center){Icon(pages[page].first,pages[page].second,Modifier.size(42.dp),tint=MaterialTheme.colorScheme.primary)}}
+            Spacer(Modifier.height(20.dp));Text(pages[page].second,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+            Spacer(Modifier.height(10.dp));Text(pages[page].third,textAlign=TextAlign.Center,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.weight(1f))
         Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){pages.indices.forEach{Box(Modifier.size(if(it==page)26.dp else 8.dp,8.dp).clip(CircleShape).background(if(it==page)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant))}}
@@ -167,10 +166,10 @@ private enum class ScreenV2 { CLIPBOARD,SAVED,FEATURES,SETTINGS,ABOUT,CONTACT,PR
                 navigationIcon={IconButton({scope.launch{drawer.open()}}){Image(painterResource(R.drawable.rss_clipboard_logo),"Menu",Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)))}},
                 actions={if(screen==ScreenV2.CLIPBOARD)IconButton({screen=ScreenV2.SETTINGS}){Icon(Icons.Default.Settings,"Settings")}})},
             bottomBar={NavigationBar{BottomItem("Clipboard",Icons.Default.ContentPaste,screen==ScreenV2.CLIPBOARD){screen=ScreenV2.CLIPBOARD};BottomItem("Saved",Icons.Default.Bookmark,screen==ScreenV2.SAVED){screen=ScreenV2.SAVED};BottomItem("Settings",Icons.Default.Settings,screen==ScreenV2.SETTINGS){screen=ScreenV2.SETTINGS}}}
-        ){pad->Box(Modifier.fillMaxSize().padding(pad)){AnimatedContent(screen,label="screen"){s->when(s){
+        ){pad->Box(Modifier.fillMaxSize().padding(pad)){when(screen){
             ScreenV2.CLIPBOARD->ClipboardV2();ScreenV2.SAVED->SavedV2();ScreenV2.FEATURES->RssFeaturesScreen();ScreenV2.SETTINGS->SettingsV2()
             ScreenV2.ABOUT->RssAboutScreen();ScreenV2.CONTACT->RssContactScreen();ScreenV2.PRIVACY->RssPrivacyScreen();ScreenV2.TERMS->RssTermsScreen()
-        }}}}
+        }}}
     }
 }
 
