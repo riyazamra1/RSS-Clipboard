@@ -1,20 +1,29 @@
+import java.io.File
 
-import java.net.URL
-import java.io.FileOutputStream
-
-val downloadRssOriginalLogo by tasks.registering {
-    val output = file("src/main/res/drawable/rss_original_logo.png")
-    outputs.file(output)
+val syncRssBrandAssets by tasks.registering {
+    val sourceDir = rootProject.file("rss-brand-kit/brand/logo")
+    val outputDir = file("src/main/res/drawable")
+    outputs.files(
+        outputDir.resolve("rss_main_logo.png"),
+        outputDir.resolve("rss_logo_only.png"),
+        outputDir.resolve("rss_favicon.png")
+    )
     doLast {
-        output.parentFile.mkdirs()
-        URL("https://raw.githubusercontent.com/riyazamra1/RSS-Data-Recovery/main/app/src/main/res/drawable/rss_original_logo.png").openStream().use { input ->
-            FileOutputStream(output).use { outputStream -> input.copyTo(outputStream) }
+        check(sourceDir.isDirectory) { "RSS-Brand-Kit submodule is missing. Initialize/update submodules before building." }
+        val assets = mapOf(
+            "RSS Logo with Name Transparent.png" to "rss_main_logo.png",
+            "RSS Logo Only.png" to "rss_logo_only.png",
+            "RSS Logo Favicon.png" to "rss_favicon.png"
+        )
+        assets.forEach { (source, target) ->
+            val input = sourceDir.resolve(source)
+            check(input.isFile) { "Missing RSS Brand Kit asset: $source" }
+            input.copyTo(outputDir.resolve(target), overwrite = true)
         }
-        check(output.length() > 100_000) { "RSS original logo download failed or is incomplete" }
     }
 }
 
-tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadRssOriginalLogo) }
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(syncRssBrandAssets) }
 
 plugins {
     id("com.android.application")
