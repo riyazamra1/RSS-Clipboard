@@ -67,7 +67,7 @@ private enum class RssScreen {
     var screen by remember{mutableStateOf(RssScreen.CLIPBOARD)}
     val drawerState=rememberDrawerState(DrawerValue.Closed);val scope=rememberCoroutineScope()
     ModalNavigationDrawer(drawerState=drawerState,drawerContent={ModalDrawerSheet{Column(Modifier.fillMaxHeight().padding(18.dp)){
-        Card(shape=RoundedCornerShape(24.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.82f)),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_logo_only),"Razeen Secure Solution",Modifier.size(58.dp));Column{Text("Welcome",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(UserPrefs.name(LocalContext.current),style=MaterialTheme.typography.titleMedium);Text(UserPrefs.email(LocalContext.current),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+        Card(shape=RoundedCornerShape(24.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.82f)),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(58.dp));Column{Text("Welcome",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(UserPrefs.name(LocalContext.current),style=MaterialTheme.typography.titleMedium);Text(UserPrefs.email(LocalContext.current),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
         Spacer(Modifier.height(26.dp))
         NavigationDrawerItem(label={Text("Clipboard")},selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.ContentPaste, "Clipboard")})
         NavigationDrawerItem(label={Text("Saved List")},selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.Bookmark, "Saved")})
@@ -78,7 +78,7 @@ private enum class RssScreen {
         NavigationDrawerItem(label={Text("Contact")},selected=screen==RssScreen.CONTACT,onClick={screen=RssScreen.CONTACT;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.ContactMail, "Contact")})
         NavigationDrawerItem(label={Text("Privacy Policy")},selected=screen==RssScreen.PRIVACY,onClick={screen=RssScreen.PRIVACY;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.PrivacyTip, "Privacy")})
         NavigationDrawerItem(label={Text("Terms & Conditions")},selected=screen==RssScreen.TERMS,onClick={screen=RssScreen.TERMS;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.Description, "Terms")})
-        Spacer(Modifier.weight(1f));ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_original_logo),"Razeen Secure Solution",Modifier.size(44.dp));Spacer(Modifier.height(6.dp));Text("Razeen Secure Solution",style=MaterialTheme.typography.labelSmall);Text("RSS Clipboard • v1.0.0",style=MaterialTheme.typography.labelSmall)
+        Spacer(Modifier.weight(1f));ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_logo_only),"Razeen Secure Solution",Modifier.size(44.dp));Spacer(Modifier.height(6.dp));Text("Razeen Secure Solution",style=MaterialTheme.typography.labelSmall);Text("RSS Clipboard • v1.0.0",style=MaterialTheme.typography.labelSmall)
     }}}){Scaffold(topBar={CenterAlignedTopAppBar(title={Text(when(screen){
             RssScreen.CLIPBOARD->"Clipboard";RssScreen.SAVED->"Saved List";RssScreen.FEATURES->"App Features";
             RssScreen.SETTINGS->"Settings";RssScreen.ABOUT->"About";RssScreen.CONTACT->"Contact";
@@ -181,7 +181,7 @@ private enum class RssScreen {
         SettingsRow(Icons.Default.Palette,"Theme","Light, Dark or System Default",onOpenTheme)
         Spacer(Modifier.weight(1f))
         Column(Modifier.fillMaxWidth().padding(bottom=18.dp),horizontalAlignment=Alignment.CenterHorizontally){
-            ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_original_logo),"Razeen Secure Solution",Modifier.size(58.dp))
+            ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_logo_only),"Razeen Secure Solution",Modifier.size(58.dp))
             Spacer(Modifier.height(6.dp));Text("Razeen Secure Solution",style=MaterialTheme.typography.titleSmall)
             Text("RSS • Mobile & PC Software • CCTV • Networking • System Administration",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Text("www.rsscctvsolution.eu.cc",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
