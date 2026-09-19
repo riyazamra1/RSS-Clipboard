@@ -3,6 +3,8 @@ package com.riyaz.rssclipboard
 import android.content.Context
 
 enum class AppTheme(val label: String) {
+    LIGHT("Light"),
+    DARK("Dark"),
     WINDOWS("Windows"),
     LINUX("Linux / Ubuntu"),
     ANDROID("Android"),
