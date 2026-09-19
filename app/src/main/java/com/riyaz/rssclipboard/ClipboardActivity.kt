@@ -11,8 +11,6 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -31,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -80,16 +77,11 @@ private fun startMonitor(context: Context) {
 
 @Composable private fun RegistrationV2(onRegister: (String,String)->Unit) {
     var name by remember { mutableStateOf("") }; var email by remember { mutableStateOf("") }
-    var show by remember { mutableStateOf(false) }; LaunchedEffect(Unit) { show = true }
     val valid = name.trim().length >= 2 && android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
-    val t = rememberInfiniteTransition(label="registration-bg")
-    val drift by t.animateFloat(0f,1f,infiniteRepeatable(tween(7000),RepeatMode.Reverse),label="drift")
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(
-        MaterialTheme.colorScheme.primary.copy(.16f + .04f*drift), MaterialTheme.colorScheme.surface,
-        MaterialTheme.colorScheme.secondary.copy(.10f))))) {
+    // Plain app background: no custom gradient or animation.\n    Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally) {
             Spacer(Modifier.height(42.dp))
-            AnimatedVisibility(show) { Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(112.dp)) }
+            Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(112.dp))
             Spacer(Modifier.height(16.dp))
             Text("RSS Clipboard",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)
             Text("Your clipboard, finally organized.",color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -196,11 +188,10 @@ private enum class ScreenV2 { CLIPBOARD,SAVED,FEATURES,SETTINGS,ABOUT,CONTACT,PR
 
 @Composable private fun SettingsV2(){
     val context=LocalContext.current;var showTheme by remember{mutableStateOf(false)}
-    val access=remember{mutableStateOf(isAccessibilityEnabled(context))}
     val battery=if(Build.VERSION.SDK_INT>=23)!(context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName)?:false)else false
     LazyColumn(Modifier.fillMaxSize().padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         item{Card(shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(62.dp).clip(RoundedCornerShape(16.dp)));Spacer(Modifier.width(14.dp));Column{Text("RSS Clipboard",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(UserPrefs.name(context),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
-        item{SettingCard(Icons.Default.Security,"Reliable background capture",if(access.value)"Enabled" else "Enable Android Accessibility access for copies from other apps"){context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))}}
+        item{SettingCard(Icons.Default.Security,"Reliable background capture","Monitors copies while RSS Clipboard is running in the background"){context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))}}
         item{SettingCard(Icons.Default.BubbleChart,"Floating Clipboard","Overlay shortcut and floating controls"){if(!Settings.canDrawOverlays(context))context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+context.packageName)))else startMonitor(context)}}
         item{SettingCard(Icons.Default.BatteryChargingFull,"Battery Optimization",if(battery)"Optimization enabled" else "Already unrestricted"){if(Build.VERSION.SDK_INT>=23)context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,Uri.parse("package:"+context.packageName)))}}
         item{SettingCard(Icons.Default.Palette,"Theme","Light, Dark, System and platform styles"){showTheme=true}}
