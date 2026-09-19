@@ -166,7 +166,7 @@ private enum class ScreenV2 { CLIPBOARD,SAVED,FEATURES,SETTINGS,ABOUT,CONTACT,PR
             TopAppBar(title={Text(when(screen){ScreenV2.CLIPBOARD->"Clipboard";ScreenV2.SAVED->"Saved List";ScreenV2.FEATURES->"App Features";ScreenV2.SETTINGS->"Settings";ScreenV2.ABOUT->"About";ScreenV2.CONTACT->"Contact";ScreenV2.PRIVACY->"Privacy Policy";ScreenV2.TERMS->"Terms & Conditions"})},
                 navigationIcon={IconButton({scope.launch{drawer.open()}}){Image(painterResource(R.drawable.rss_clipboard_logo),"Menu",Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)))}},
                 actions={if(screen==ScreenV2.CLIPBOARD)IconButton({screen=ScreenV2.SETTINGS}){Icon(Icons.Default.Settings,"Settings")}})},
-            bottomBar={NavigationBar{BottomItem("Clipboard",Icons.Default.ContentPaste,screen==ScreenV2.CLIPBOARD){screen=ScreenV2.CLIPBOARD};BottomItem("Saved",Icons.Default.Bookmark,screen==ScreenV2.SAVED){screen=ScreenV2.SAVED};BottomItem("Settings",Icons.Default.Settings,screen==ScreenV2.SETTINGS){screen=ScreenV2.SETTINGS}}}
+            bottomBar={NavigationBar{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){BottomItem("Clipboard",Icons.Default.ContentPaste,screen==ScreenV2.CLIPBOARD){screen=ScreenV2.CLIPBOARD};BottomItem("Saved",Icons.Default.Bookmark,screen==ScreenV2.SAVED){screen=ScreenV2.SAVED};BottomItem("Settings",Icons.Default.Settings,screen==ScreenV2.SETTINGS){screen=ScreenV2.SETTINGS}}}}
         ){pad->Box(Modifier.fillMaxSize().padding(pad)){when(screen){
             ScreenV2.CLIPBOARD->ClipboardV2();ScreenV2.SAVED->SavedV2();ScreenV2.FEATURES->RssFeaturesScreen();ScreenV2.SETTINGS->SettingsV2()
             ScreenV2.ABOUT->RssAboutScreen();ScreenV2.CONTACT->RssContactScreen();ScreenV2.PRIVACY->RssPrivacyScreen();ScreenV2.TERMS->RssTermsScreen()
@@ -175,7 +175,7 @@ private enum class ScreenV2 { CLIPBOARD,SAVED,FEATURES,SETTINGS,ABOUT,CONTACT,PR
 }
 
 @Composable private fun DrawerItem(label:String,icon:ImageVector,selected:Boolean,onClick:()->Unit){NavigationDrawerItem(label={Text(label)},icon={Icon(icon,label,tint=MaterialTheme.colorScheme.primary)},selected=selected,onClick=onClick,modifier=Modifier.padding(horizontal=12.dp,vertical=2.dp))}
-@Composable private fun BottomItem(label:String,icon:ImageVector,selected:Boolean,onClick:()->Unit){ NavigationBarItem(selected=selected,onClick=onClick,icon={Icon(icon,label,tint=MaterialTheme.colorScheme.primary)},label={Text(label)}) }
+@Composable private fun BottomItem(label:String,icon:ImageVector,selected:Boolean,onClick:()->Unit){Column(horizontalAlignment=Alignment.CenterHorizontally){IconButton(onClick){Icon(icon,label,tint=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)};Text(label,style=MaterialTheme.typography.labelSmall,color=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}}
 
 @Composable private fun ClipboardV2(vm:MainViewModel=viewModel()) {
     val items by vm.visibleItems.collectAsState();val query by vm.query.collectAsState();val clipboard=LocalClipboardManager.current
