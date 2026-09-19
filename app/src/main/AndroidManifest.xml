@@ -14,12 +14,17 @@
         android:roundIcon="@drawable/rss_clipboard_logo"
         android:supportsRtl="true"
         android:theme="@style/Theme.RSSClipboard.Splash">
-        <activity android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.RSSClipboard.Splash">
+
+        <activity
+            android:name=".ClipboardActivity"
+            android:exported="true"
+            android:theme="@style/Theme.RSSClipboard.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
@@ -29,6 +34,7 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
         <service
             android:name=".FloatingClipboardService"
             android:exported="false"
@@ -36,6 +42,18 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="clipboard history monitoring and user-requested floating clipboard controls" />
+        </service>
+
+        <service
+            android:name=".ClipboardAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/clipboard_accessibility_service" />
         </service>
     </application>
 </manifest>
