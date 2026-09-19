@@ -178,7 +178,7 @@ private enum class RssScreen {
         SettingsRow(Icons.Default.BubbleChart,"Floating Clipboard","Overlay, auto-hide and dialog options",onOpenFloating)
         SettingsRow(Icons.Default.BatteryChargingFull,"Battery Optimization",if(batteryOptimized)"Allow RSS Clipboard to stay active with less background restriction" else "Optimized for always-on background operation",onBatteryOptimization)
         SettingsRow(Icons.Default.Notifications,"Notifications",if(FloatingPrefs.notifications(context))"On — foreground notification preference" else "Off — clipboard capture continues",{FloatingPrefs.setNotifications(context,!FloatingPrefs.notifications(context))})
-        SettingsRow(Icons.Default.Palette,"Theme","Windows, Ubuntu, Android, macOS, iOS and more",onOpenTheme)
+        SettingsRow(Icons.Default.Palette,"Theme","Light, Dark or System Default",onOpenTheme)
         Spacer(Modifier.weight(1f))
         Column(Modifier.fillMaxWidth().padding(bottom=18.dp),horizontalAlignment=Alignment.CenterHorizontally){
             ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_original_logo),"Razeen Secure Solution",Modifier.size(58.dp))
