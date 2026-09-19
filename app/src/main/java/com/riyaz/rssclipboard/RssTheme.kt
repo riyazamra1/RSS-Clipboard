@@ -30,6 +30,8 @@ fun RssClipboardTheme(theme: AppTheme, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val systemDark = isSystemInDarkTheme()
     val scheme: ColorScheme = when (theme) {
+        AppTheme.LIGHT -> lightColorScheme()
+        AppTheme.DARK -> darkColorScheme()
         AppTheme.WINDOWS -> if (systemDark) darkColorScheme(primary = WindowsBlue, secondary = Color(0xFF60AEEA)) else lightColorScheme(primary = WindowsBlue, secondary = Color(0xFF106EBE))
         AppTheme.LINUX -> if (systemDark) darkColorScheme(primary = UbuntuOrange, secondary = Color(0xFFC17AA0), tertiary = Color(0xFF9B4D7A)) else lightColorScheme(primary = UbuntuOrange, secondary = UbuntuPurple, tertiary = Color(0xFF5E2750))
         AppTheme.ANDROID -> if (systemDark) darkColorScheme(primary = AndroidGreen, onPrimary = Color(0xFF003919), secondary = Color(0xFF65DDB5)) else lightColorScheme(primary = AndroidGreen, onPrimary = Color(0xFF003919), secondary = Color(0xFF006C4C))
@@ -43,6 +45,7 @@ fun RssClipboardTheme(theme: AppTheme, content: @Composable () -> Unit) {
         }
     }
     val shapes = when (theme) {
+        AppTheme.LIGHT, AppTheme.DARK -> Shapes()
         AppTheme.IOS -> Shapes(small=RoundedCornerShape(14.dp),medium=RoundedCornerShape(20.dp),large=RoundedCornerShape(28.dp))
         AppTheme.MACOS -> Shapes(small=RoundedCornerShape(10.dp),medium=RoundedCornerShape(14.dp),large=RoundedCornerShape(20.dp))
         AppTheme.WINDOWS -> Shapes(small=RoundedCornerShape(6.dp),medium=RoundedCornerShape(10.dp),large=RoundedCornerShape(14.dp))
