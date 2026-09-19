@@ -174,7 +174,7 @@ private enum class ScreenV2 { CLIPBOARD,SAVED,FEATURES,SETTINGS,ABOUT,CONTACT,PR
 }
 
 @Composable private fun DrawerItem(label:String,icon:ImageVector,selected:Boolean,onClick:()->Unit){NavigationDrawerItem(label={Text(label)},icon={Icon(icon,label,tint=MaterialTheme.colorScheme.primary)},selected=selected,onClick=onClick,modifier=Modifier.padding(horizontal=12.dp,vertical=2.dp))}
-@Composable private fun BottomItem(label:String,icon:ImageVector,selected:Boolean,onClick:()->Unit){NavigationBarItem(selected=selected,onClick=onClick,icon={Icon(icon,label,tint=MaterialTheme.colorScheme.primary)},label={Text(label)})}
+@Composable private fun BottomItem(label:String,icon:ImageVector,selected:Boolean,onClick:()->Unit){ NavigationBarItem(selected=selected,onClick=onClick,icon={Icon(icon,label,tint=MaterialTheme.colorScheme.primary)},label={Text(label)}) }
 
 @Composable private fun ClipboardV2(vm:MainViewModel=viewModel()) {
     val items by vm.visibleItems.collectAsState();val query by vm.query.collectAsState();val clipboard=LocalClipboardManager.current
