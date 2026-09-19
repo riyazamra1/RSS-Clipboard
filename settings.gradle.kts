@@ -15,5 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "RSS-Clipboard"
-includeBuild("rss-brand-kit/android/rss-common")
 include(":app")
