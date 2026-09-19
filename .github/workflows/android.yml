@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          token: ${{ secrets.RSS_GITHUB_TOKEN }}
+          token: ${{ secrets.RSS_GITHUB_TOKEN || github.token }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
