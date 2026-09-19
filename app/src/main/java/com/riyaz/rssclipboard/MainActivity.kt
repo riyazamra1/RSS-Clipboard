@@ -54,7 +54,9 @@ class MainActivity : ComponentActivity() {
     private fun showThemeSettings(){setContent{RssClipboardTheme(ThemePrefs.get(this)){RssApp(::showFloatingSettings,::showThemeSettings,::openBatteryOptimization);ThemeSelectorDialog(::renderApp)}}}
     private fun openBatteryOptimization(){if(Build.VERSION.SDK_INT<Build.VERSION_CODES.M)return;val pm=getSystemService(PowerManager::class.java);if(pm.isIgnoringBatteryOptimizations(packageName))return;startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply{data=Uri.parse("package:$packageName")})}
 }
-private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
+private enum class RssScreen {
+    CLIPBOARD, SAVED, FEATURES, SETTINGS, ABOUT, CONTACT, PRIVACY, TERMS
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun RssApp(onOpenFloating:()->Unit,onOpenTheme:()->Unit,onBatteryOptimization:()->Unit){
@@ -65,13 +67,27 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
         Spacer(Modifier.height(26.dp))
         NavigationDrawerItem(label={Text("Clipboard")},selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.ContentPaste, "Clipboard")})
         NavigationDrawerItem(label={Text("Saved List")},selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.Bookmark, "Saved")})
+        HorizontalDivider()
+        NavigationDrawerItem(label={Text("App Features")},selected=screen==RssScreen.FEATURES,onClick={screen=RssScreen.FEATURES;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.AutoAwesome, "Features")})
         NavigationDrawerItem(label={Text("Settings")},selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.Settings, "Settings")})
+        NavigationDrawerItem(label={Text("About")},selected=screen==RssScreen.ABOUT,onClick={screen=RssScreen.ABOUT;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.Info, "About")})
+        NavigationDrawerItem(label={Text("Contact")},selected=screen==RssScreen.CONTACT,onClick={screen=RssScreen.CONTACT;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.ContactMail, "Contact")})
+        NavigationDrawerItem(label={Text("Privacy Policy")},selected=screen==RssScreen.PRIVACY,onClick={screen=RssScreen.PRIVACY;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.PrivacyTip, "Privacy")})
+        NavigationDrawerItem(label={Text("Terms & Conditions")},selected=screen==RssScreen.TERMS,onClick={screen=RssScreen.TERMS;scope.launch{drawerState.close()}},icon={ColorfulIcon(Icons.Default.Description, "Terms")})
         Spacer(Modifier.weight(1f));ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_original_logo),"Razeen Secure Solution",Modifier.size(44.dp));Spacer(Modifier.height(6.dp));Text("Razeen Secure Solution",style=MaterialTheme.typography.labelSmall);Text("RSS Clipboard • v1.0.0",style=MaterialTheme.typography.labelSmall)
-    }}}){Scaffold(topBar={CenterAlignedTopAppBar(title={Text(when(screen){RssScreen.CLIPBOARD->"Clipboard";RssScreen.SAVED->"Saved List";RssScreen.SETTINGS->"Settings"})},navigationIcon={IconButton({scope.launch{drawerState.open()}}){Icon(Icons.Default.Menu,"Menu")}})},bottomBar={NavigationBar{
+    }}}){Scaffold(topBar={CenterAlignedTopAppBar(title={Text(when(screen){
+            RssScreen.CLIPBOARD->"Clipboard";RssScreen.SAVED->"Saved List";RssScreen.FEATURES->"App Features";
+            RssScreen.SETTINGS->"Settings";RssScreen.ABOUT->"About";RssScreen.CONTACT->"Contact";
+            RssScreen.PRIVACY->"Privacy Policy";RssScreen.TERMS->"Terms & Conditions"
+        })},navigationIcon={IconButton({scope.launch{drawerState.open()}}){Icon(Icons.Default.Menu,"Menu")}})},bottomBar={NavigationBar{
         NavigationBarItem(selected=screen==RssScreen.CLIPBOARD,onClick={screen=RssScreen.CLIPBOARD},icon={ColorfulIcon(Icons.Default.ContentPaste, "Clipboard")},label={Text("Clipboard")})
         NavigationBarItem(selected=screen==RssScreen.SAVED,onClick={screen=RssScreen.SAVED},icon={ColorfulIcon(Icons.Default.Bookmark, "Saved")},label={Text("Saved")})
         NavigationBarItem(selected=screen==RssScreen.SETTINGS,onClick={screen=RssScreen.SETTINGS},icon={ColorfulIcon(Icons.Default.Settings, "Settings")},label={Text("Settings")})
-    }}){pad->Box(Modifier.fillMaxSize().padding(pad)){AnimatedContent(targetState=screen,label="screen"){target->when(target){RssScreen.CLIPBOARD->ClipboardScreen();RssScreen.SAVED->SavedListScreen();RssScreen.SETTINGS->SettingsScreen(onOpenFloating,onOpenTheme,onBatteryOptimization)}}}}}
+    }}){pad->Box(Modifier.fillMaxSize().padding(pad)){AnimatedContent(targetState=screen,label="screen"){target->when(target){
+        RssScreen.CLIPBOARD->ClipboardScreen();RssScreen.SAVED->SavedListScreen();RssScreen.FEATURES->RssFeaturesScreen();
+        RssScreen.SETTINGS->SettingsScreen(onOpenFloating,onOpenTheme,onBatteryOptimization);RssScreen.ABOUT->RssAboutScreen();
+        RssScreen.CONTACT->RssContactScreen();RssScreen.PRIVACY->RssPrivacyScreen();RssScreen.TERMS->RssTermsScreen()
+    }}}}}
 }
 @Composable private fun WelcomeScreen(onRegister:(String,String)->Unit){
     var name by remember{mutableStateOf("")};var email by remember{mutableStateOf("")}
@@ -83,7 +99,7 @@ private enum class RssScreen { CLIPBOARD, SAVED, SETTINGS }
 
         Column(Modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
             ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(92.dp))
-            Spacer(Modifier.height(18.dp));Text("Welcome to RSS Clipboard",style=MaterialTheme.typography.headlineMedium);Text("Fast, private and organized.",style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(18.dp));Text("Create your RSS Clipboard account",style=MaterialTheme.typography.headlineMedium);Text("Fast, private and organized.",style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp));Card(shape=RoundedCornerShape(28.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),elevation=CardDefaults.cardElevation(defaultElevation=1.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("Create your profile",style=MaterialTheme.typography.titleLarge);OutlinedTextField(name,{name=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Your name")},leadingIcon={Icon(Icons.Default.Person,null)});OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Email address")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email),leadingIcon={Icon(Icons.Default.Email,null)});Button({onRegister(name,email)},enabled=valid,modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp)){Text("Get started")}}}
             Spacer(Modifier.height(14.dp));Text("History stays on this device and expires after 24 hours.",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
