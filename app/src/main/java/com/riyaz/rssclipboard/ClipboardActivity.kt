@@ -106,7 +106,7 @@ private fun startMonitor(context: Context) {
     val pages=listOf(
         Triple(Icons.Default.ContentPaste,"Capture every copy","Keep recent text, links, emails and phone numbers for 24 hours."),
         Triple(Icons.Default.Bookmark,"Save what matters","Move important clipboard items into the permanent Saved List."),
-        Triple(Icons.Default.Security,"Built for privacy","History stays local. Enable Android Accessibility access for reliable background capture.")
+        Triple(Icons.Default.Security,"Built for privacy","History stays local. Background capture runs through the RSS Clipboard monitoring service.")
     )
     Column(Modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         Spacer(Modifier.height(44.dp));Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(112.dp));Spacer(Modifier.height(24.dp))
@@ -200,4 +200,3 @@ private enum class ScreenV2 { CLIPBOARD,SAVED,FEATURES,SETTINGS,ABOUT,CONTACT,PR
     if(showTheme){var selected by remember{mutableStateOf(ThemePrefs.get(context))};AlertDialog(onDismissRequest={showTheme=false},title={Text("Theme")},text={Column{AppTheme.entries.forEach{theme->FilterChip(selected==theme,{selected=theme;ThemePrefs.set(context,theme);showTheme=false;(context as?Activity)?.recreate()},label={Text(theme.label)},modifier=Modifier.fillMaxWidth())}}},confirmButton={TextButton({showTheme=false}){Text("Cancel")}})}
 }
 @Composable private fun SettingCard(icon:ImageVector,title:String,subtitle:String,onClick:()->Unit){Card(shape=RoundedCornerShape(20.dp),modifier=Modifier.fillMaxWidth().clickable(onClick=onClick)){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){Icon(icon,title,Modifier.size(28.dp),tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(14.dp));Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold);Text(subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
-private fun isAccessibilityEnabled(context:Context):Boolean=runCatching{val m=context.getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager;m.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any{it.resolveInfo.serviceInfo.packageName==context.packageName}}.getOrDefault(false)
