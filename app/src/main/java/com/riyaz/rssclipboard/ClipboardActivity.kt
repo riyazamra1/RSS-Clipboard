@@ -49,17 +49,6 @@ class ClipboardActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { RssClipboardTheme(ThemePrefs.get(this)) { ClipboardRoot() } }
     }
-    override fun onResume() {
-        super.onResume()
-        if (UserPrefs.isRegistered(this) && FloatingPrefs.enabled(this)) startMonitor(this)
-    }
-}
-
-private fun startMonitor(context: Context) {
-    runCatching {
-        val i = Intent(context, FloatingClipboardService::class.java)
-        if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(i) else context.startService(i)
-    }
 }
 
 @Composable private fun ClipboardRoot() {
@@ -68,7 +57,7 @@ private fun startMonitor(context: Context) {
     var welcome by remember { mutableStateOf(UserPrefs.welcomeSeen(context)) }
     when {
         !registered -> RegistrationV2 { name, email ->
-            UserPrefs.register(context, name, email); registered = true; welcome = false; startMonitor(context)
+            UserPrefs.register(context, name, email); registered = true; welcome = false
         }
         !welcome -> WelcomeV2 { UserPrefs.setWelcomeSeen(context); welcome = true }
         else -> MainShellV2()
@@ -107,7 +96,7 @@ private fun startMonitor(context: Context) {
     val pages=listOf(
         Triple(Icons.Default.ContentPaste,"Capture every copy","Keep recent text, links, emails and phone numbers for 24 hours."),
         Triple(Icons.Default.Bookmark,"Save what matters","Move important clipboard items into the permanent Saved List."),
-        Triple(Icons.Default.Security,"Built for privacy","History stays local. Background capture runs through the RSS Clipboard monitoring service.")
+        Triple(Icons.Default.Security,"Built for privacy","History stays local. Clipboard capture is handled while RSS Clipboard is active.")
     )
     Column(Modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         Spacer(Modifier.height(44.dp));Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(112.dp));Spacer(Modifier.height(24.dp))
@@ -192,9 +181,6 @@ private enum class ScreenV2 { CLIPBOARD,SAVED,FEATURES,SETTINGS,ABOUT,CONTACT,PR
     val battery=if(Build.VERSION.SDK_INT>=23)!(context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName)?:false)else false
     LazyColumn(Modifier.fillMaxSize().padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         item{Card(shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(62.dp).clip(RoundedCornerShape(16.dp)));Spacer(Modifier.width(14.dp));Column{Text("RSS Clipboard",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(UserPrefs.name(context),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
-        item{SettingCard(Icons.Default.Security,"Reliable background capture","Monitors copies while RSS Clipboard is running in the background"){context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))}}
-        item{SettingCard(Icons.Default.BubbleChart,"Floating Clipboard","Overlay shortcut and floating controls"){if(!Settings.canDrawOverlays(context))context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+context.packageName)))else startMonitor(context)}}
-        item{SettingCard(Icons.Default.BatteryChargingFull,"Battery Optimization",if(battery)"Optimization enabled" else "Already unrestricted"){if(Build.VERSION.SDK_INT>=23)context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,Uri.parse("package:"+context.packageName)))}}
         item{SettingCard(Icons.Default.Palette,"Theme","Light, Dark, System and platform styles"){showTheme=true}}
         item{Spacer(Modifier.height(14.dp));HorizontalDivider();Spacer(Modifier.height(10.dp));Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){Image(painterResource(R.drawable.rss_logo_only),"Razeen Secure Solution",Modifier.size(54.dp));Text("Razeen Secure Solution",fontWeight=FontWeight.SemiBold);Text("www.rsscctvsolution.eu.cc",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
     }
