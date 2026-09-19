@@ -1,0 +1,3 @@
+<resources>
+    <string name="clipboard_accessibility_description">Allows RSS Clipboard to capture clipboard changes while you use other apps. Clipboard content is stored locally and expires after 24 hours.</string>
+</resources>
