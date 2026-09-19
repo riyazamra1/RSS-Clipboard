@@ -3,7 +3,7 @@
     <item android:drawable="@android:color/white" />
     <item android:gravity="center">
         <inset android:inset="72dp">
-            <bitmap android:src="@drawable/rss_clipboard_splash_logo" android:gravity="fill" />
+            <bitmap android:src="@drawable/rss_main_logo" android:gravity="fill" />
         </inset>
     </item>
 </layer-list>
