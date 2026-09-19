@@ -78,7 +78,8 @@ private fun startMonitor(context: Context) {
 @Composable private fun RegistrationV2(onRegister: (String,String)->Unit) {
     var name by remember { mutableStateOf("") }; var email by remember { mutableStateOf("") }
     val valid = name.trim().length >= 2 && android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
-    // Plain app background: no custom gradient or animation.\n    Box(Modifier.fillMaxSize()) {
+    // Plain app background: no custom gradient or animation.
+    Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally) {
             Spacer(Modifier.height(42.dp))
             Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(112.dp))
