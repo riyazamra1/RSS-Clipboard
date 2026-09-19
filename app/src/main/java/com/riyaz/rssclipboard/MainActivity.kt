@@ -31,7 +31,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -96,10 +95,8 @@ private enum class RssScreen {
 @Composable private fun WelcomeScreen(onRegister:(String,String)->Unit){
     var name by remember{mutableStateOf("")};var email by remember{mutableStateOf("")}
     val valid=name.trim().length>=2&&android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
-    val primaryGlow = MaterialTheme.colorScheme.primary.copy(.10f)
-    val secondaryGlow = MaterialTheme.colorScheme.secondary.copy(.08f)
-    val backgroundBrush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(.12f),MaterialTheme.colorScheme.surface,MaterialTheme.colorScheme.secondary.copy(.10f)))
-    Box(Modifier.fillMaxSize().background(backgroundBrush)){
+    // Intentionally no custom/animated background: keep the registration screen plain and stable.
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)){
 
         Column(Modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
             ComposeImage(painterResource(com.riyaz.rssclipboard.R.drawable.rss_clipboard_logo),"RSS Clipboard",Modifier.size(92.dp))
