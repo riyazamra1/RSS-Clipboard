@@ -48,7 +48,11 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);renderApp()}
     override fun onResume(){super.onResume();if(UserPrefs.isRegistered(this)&&FloatingPrefs.enabled(this))startClipboardService()}
-    private fun renderApp(){setContent{RssClipboardTheme(ThemePrefs.get(this)){if(UserPrefs.isRegistered(this))RssApp(::showFloatingSettings,::showThemeSettings,::openBatteryOptimization)else WelcomeScreen{n,e->UserPrefs.register(this,n,e);startClipboardService();renderApp()}}}}
+    private fun renderApp(){setContent{RssClipboardTheme(ThemePrefs.get(this)){when{
+        !UserPrefs.isRegistered(this)->WelcomeScreen{n,e->UserPrefs.register(this,n,e);startClipboardService();renderApp()}
+        !UserPrefs.welcomeSeen(this)->RssWelcomeExperience{UserPrefs.setWelcomeSeen(this);renderApp()}
+        else->RssApp(::showFloatingSettings,::showThemeSettings,::openBatteryOptimization)
+    }}}}
     private fun startClipboardService(){if(Build.VERSION.SDK_INT>=26)startForegroundService(Intent(this,FloatingClipboardService::class.java))else startService(Intent(this,FloatingClipboardService::class.java))}
     private fun showFloatingSettings(){setContent{RssClipboardTheme(ThemePrefs.get(this)){RssApp(::showFloatingSettings,::showThemeSettings,::openBatteryOptimization);FloatingSettingsDialog(::renderApp)}}}
     private fun showThemeSettings(){setContent{RssClipboardTheme(ThemePrefs.get(this)){RssApp(::showFloatingSettings,::showThemeSettings,::openBatteryOptimization);ThemeSelectorDialog(::renderApp)}}}
