@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -292,6 +293,7 @@ class ClipboardActivity : ComponentActivity() {
         prefs.edit().putStringSet(key, values).apply()
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable private fun SettingsScreen(back: () -> Unit) {
         Scaffold(topBar = { TopAppBar(title = { Text("Settings") }, navigationIcon = { IconButton(back) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { pad ->
             Column(Modifier.padding(pad).padding(20.dp)) {
@@ -304,6 +306,7 @@ class ClipboardActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable private fun AboutScreen(back: () -> Unit) {
         Scaffold(topBar = { TopAppBar(title = { Text("About RSS Clipboard") }, navigationIcon = { IconButton(back) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { pad ->
             Column(Modifier.padding(pad).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
