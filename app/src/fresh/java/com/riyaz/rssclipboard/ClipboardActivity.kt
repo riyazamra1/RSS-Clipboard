@@ -233,6 +233,7 @@ class ClipboardActivity : ComponentActivity() {
             )
         }
         Scaffold(topBar = {
+            @OptIn(ExperimentalMaterial3Api::class)
             TopAppBar(
                 title = { Row(verticalAlignment = Alignment.CenterVertically) { Logo(Modifier.size(38.dp)); Spacer(Modifier.width(10.dp)); Text("RSS Clipboard") } },
                 navigationIcon = { IconButton(openDrawer) { Icon(Icons.Default.Menu, "Menu") } }
