@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -42,7 +43,13 @@ class ClipboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        startClipboardCapture()
         setContent { App() }
+    }
+
+    private fun startClipboardCapture() {
+        val intent = Intent(this, ClipboardCaptureService::class.java)
+        androidx.core.content.ContextCompat.startForegroundService(this, intent)
     }
 
     override fun onResume() {
@@ -177,7 +184,7 @@ class ClipboardActivity : ComponentActivity() {
 
     @Composable private fun FeaturesScreen(onNext: () -> Unit) {
         val features = listOf(
-            Triple(Icons.Default.ContentCopy, "Clipboard history", "Capture clipboard changes while RSS Clipboard is active."),
+            Triple(Icons.Default.ContentCopy, "Clipboard history", "Capture clipboard changes even when RSS Clipboard is closed."),
             Triple(Icons.Default.Link, "Smart types", "Separate text, URLs and email addresses."),
             Triple(Icons.Default.Security, "Private by design", "Data stays on this device unless a future backup feature is explicitly enabled.")
         )
@@ -200,7 +207,26 @@ class ClipboardActivity : ComponentActivity() {
 
     @Composable private fun MainScreen(clips: List<ClipItem>, refresh: () -> Unit, openDrawer: () -> Unit) {
         var query by remember { mutableStateOf("") }
+        var listDialog by remember { mutableStateOf(false) }
+        var selectedText by remember { mutableStateOf("") }
+        fun showSaveToList(text: String) { selectedText = text; listDialog = true }
         val filtered = clips.filter { it.text.contains(query, true) }
+        if (listDialog) {
+            val lists = loadLists()
+            AlertDialog(
+                onDismissRequest = { listDialog = false },
+                title = { Text("Save to list") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (lists.isEmpty()) Text("No lists yet. Create one in Settings.")
+                        lists.forEach { name ->
+                            TextButton(onClick = { saveToList(name, selectedText); listDialog = false }) { Text(name) }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { listDialog = false }) { Text("Close") } }
+            )
+        }
         Scaffold(topBar = {
             TopAppBar(
                 title = { Row(verticalAlignment = Alignment.CenterVertically) { Logo(Modifier.size(38.dp)); Spacer(Modifier.width(10.dp)); Text("RSS Clipboard") } },
@@ -215,7 +241,7 @@ class ClipboardActivity : ComponentActivity() {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.ContentCopy, null, Modifier.size(48.dp), tint = Color.Gray)
                             Text("No clipboard items yet", fontWeight = FontWeight.Bold)
-                            Text("Copy text while this app is open.", color = Color.Gray)
+                            Text("Copy text anywhere. RSS Clipboard saves it automatically.", color = Color.Gray)
                         }
                     }
                 } else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -229,10 +255,13 @@ class ClipboardActivity : ComponentActivity() {
                                 Spacer(Modifier.height(8.dp))
                                 Text(item.text, maxLines = 5)
                                 Spacer(Modifier.height(8.dp))
-                                TextButton(onClick = {
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("RSS Clipboard", item.text))
-                                    refresh()
-                                }) { Text("Copy again") }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = {
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("RSS Clipboard", item.text))
+                                        refresh()
+                                    }) { Text("Copy again") }
+                                    TextButton(onClick = { showSaveToList(item.text) }) { Text("Save to list") }
+                                }
                             }
                         }
                     }
@@ -254,6 +283,17 @@ class ClipboardActivity : ComponentActivity() {
         }
     }
 
+    private fun loadLists(): List<String> =
+        getSharedPreferences("rss_clipboard", MODE_PRIVATE).getStringSet("clip_lists", emptySet()).orEmpty().sorted()
+
+    private fun saveToList(name: String, text: String) {
+        val prefs = getSharedPreferences("rss_clipboard", MODE_PRIVATE)
+        val key = "list_" + name
+        val values = prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+        values.add(text)
+        prefs.edit().putStringSet(key, values).apply()
+    }
+
     @Composable private fun SettingsScreen(back: () -> Unit) {
         Scaffold(topBar = { TopAppBar(title = { Text("Settings") }, navigationIcon = { IconButton(back) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { pad ->
             Column(Modifier.padding(pad).padding(20.dp)) {
@@ -261,7 +301,7 @@ class ClipboardActivity : ComponentActivity() {
                 Text("The current build uses a clean light RSS interface.", color = Color.Gray)
                 Spacer(Modifier.height(24.dp))
                 Text("Clipboard capture", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Text("Capture is active only while RSS Clipboard is open. No background service, boot receiver, overlay, or accessibility monitoring is used.", color = Color.Gray)
+                Text("Background capture is enabled. RSS Clipboard monitors supported clipboard changes even when the app screen is closed. Android requires an ongoing foreground-service notification for continuous monitoring.", color = Color.Gray)
             }
         }
     }
