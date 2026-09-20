@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.RSSClipboard" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#B4862E</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#FFF8F7F3</item>
+        <item name="android:navigationBarColor">#FFF8F7F3</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>
