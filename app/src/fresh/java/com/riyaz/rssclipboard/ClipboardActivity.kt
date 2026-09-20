@@ -2,9 +2,11 @@ package com.riyaz.rssclipboard
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.BroadcastReceiver
 import android.content.Context
-import android.os.Bundle
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -36,48 +38,44 @@ private data class ClipItem(val text: String, val type: String, val time: String
 
 class ClipboardActivity : ComponentActivity() {
     private lateinit var clipboard: ClipboardManager
-    private var listener: ClipboardManager.OnPrimaryClipChangedListener? = null
-    private var onCaptured: ((String) -> Unit)? = null
+    private var refreshReceiver: BroadcastReceiver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         startClipboardCapture()
+        refreshReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "com.riyaz.rssclipboard.CLIPBOARD_UPDATED") {
+                    refreshUi()
+                }
+            }
+        }
+        setContent { App() }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        refreshReceiver?.let {
+            registerReceiver(it, IntentFilter("com.riyaz.rssclipboard.CLIPBOARD_UPDATED"), Context.RECEIVER_NOT_EXPORTED)
+        }
+    }
+
+    override fun onStop() {
+        refreshReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: IllegalArgumentException) {}
+        }
+        super.onStop()
+    }
+
+    private fun refreshUi() {
+        // Compose state is refreshed through the Activity's lifecycle on next recomposition.
         setContent { App() }
     }
 
     private fun startClipboardCapture() {
         val intent = Intent(this, ClipboardCaptureService::class.java)
         androidx.core.content.ContextCompat.startForegroundService(this, intent)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        listener = ClipboardManager.OnPrimaryClipChangedListener {
-            val text = clipboard.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString()?.trim()
-            if (!text.isNullOrEmpty()) onCaptured?.invoke(text)
-        }
-        clipboard.addPrimaryClipChangedListener(listener)
-    }
-
-    override fun onPause() {
-        listener?.let { clipboard.removePrimaryClipChangedListener(it) }
-        listener = null
-        super.onPause()
-    }
-
-    private fun saveCaptured(text: String) {
-        val prefs = getSharedPreferences("rss_clipboard", MODE_PRIVATE)
-        val current = prefs.getStringSet("clips", emptySet())?.toMutableSet() ?: mutableSetOf()
-        val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-        val type = when {
-            android.util.Patterns.EMAIL_ADDRESS.matcher(text).matches() -> "Email"
-            android.util.Patterns.WEB_URL.matcher(text).matches() -> "URL"
-            else -> "Text"
-        }
-        current.removeAll { it.substringBefore("|") == text }
-        current.add("$text|$type|$stamp")
-        prefs.edit().putStringSet("clips", current).apply()
     }
 
     @Composable
@@ -89,11 +87,6 @@ class ClipboardActivity : ComponentActivity() {
         var stage by remember { mutableStateOf(if (registered) "welcome" else "register") }
         var clips by remember { mutableStateOf(loadClips()) }
         var drawer by remember { mutableStateOf(false) }
-
-        onCaptured = { text ->
-            saveCaptured(text)
-            clips = loadClips()
-        }
 
         LaunchedEffect(Unit) { delay(900); splash = false }
 
@@ -126,12 +119,25 @@ class ClipboardActivity : ComponentActivity() {
     }
 
     private fun loadClips(): List<ClipItem> {
-        return getSharedPreferences("rss_clipboard", MODE_PRIVATE)
-            .getStringSet("clips", emptySet()).orEmpty()
-            .mapNotNull {
-                val p = it.split("|", limit = 3)
-                if (p.size == 3) ClipItem(p[0], p[1], p[2]) else null
-            }.sortedByDescending { it.time }
+        val json = org.json.JSONArray(
+            getSharedPreferences("rss_clipboard", MODE_PRIVATE)
+                .getString("clips_json", "[]")
+        )
+        return buildList {
+            for (i in 0 until json.length()) {
+                val item = json.optJSONObject(i) ?: continue
+                val text = item.optString("text")
+                if (text.isBlank()) continue
+                val type = item.optString("type", "Text")
+                val time = item.optLong("time", 0L)
+                val stamp = if (time > 0L) {
+                    SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(time))
+                } else ""
+                if (time >= System.currentTimeMillis() - 24L * 60L * 60L * 1000L) {
+                    add(ClipItem(text, type, stamp))
+                }
+            }
+        }.sortedByDescending { it.time }
     }
 
     @Composable private fun Logo(modifier: Modifier = Modifier) {
