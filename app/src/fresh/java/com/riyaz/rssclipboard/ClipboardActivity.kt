@@ -308,6 +308,48 @@ class ClipboardActivity : ComponentActivity() {
                 Spacer(Modifier.height(24.dp))
                 Text("Clipboard capture", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 Text("Background capture is enabled. RSS Clipboard monitors supported clipboard changes even when the app screen is closed. Android requires an ongoing foreground-service notification for continuous monitoring.", color = Color.Gray)
+                Spacer(Modifier.height(24.dp))
+                var newListName by remember { mutableStateOf("") }
+                var lists by remember { mutableStateOf(loadLists()) }
+                Text("Saved lists", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("Create lists such as Work, Personal or Projects, then use “Save to list” on any clipboard item.", color = Color.Gray)
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newListName,
+                        onValueChange = { newListName = it },
+                        label = { Text("New list name") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(onClick = {
+                        val name = newListName.trim()
+                        if (name.isNotEmpty()) {
+                            val prefs = getSharedPreferences("rss_clipboard", MODE_PRIVATE)
+                            val updated = prefs.getStringSet("clip_lists", emptySet()).orEmpty().toMutableSet()
+                            updated.add(name)
+                            prefs.edit().putStringSet("clip_lists", updated).apply()
+                            lists = updated.sorted()
+                            newListName = ""
+                        }
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = "Create list")
+                    }
+                }
+                if (lists.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    lists.forEach { name ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Folder, null, tint = Color(0xFFB4862E))
+                            Spacer(Modifier.width(10.dp))
+                            Text(name, Modifier.weight(1f))
+                        }
+                    }
+                }
             }
         }
     }
