@@ -19,7 +19,7 @@ android {
     buildFeatures { compose = true }
 
     sourceSets["main"].java.setSrcDirs(listOf("src/fresh/java"))
-    sourceSets["main"].res.setSrcDirs(listOf("src/fresh/res", "src/main/res"))
+    sourceSets["main"].res.setSrcDirs(listOf("src/fresh/res"))
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
