@@ -218,18 +218,67 @@ class ClipboardActivity : ComponentActivity() {
         val filtered = clips.filter { it.text.contains(query, true) }
         if (listDialog) {
             val lists = loadLists()
+            var newListName by remember { mutableStateOf("") }
             AlertDialog(
                 onDismissRequest = { listDialog = false },
                 title = { Text("Save to list") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (lists.isEmpty()) Text("No lists yet. Create one in Settings.")
-                        lists.forEach { name ->
-                            TextButton(onClick = { saveToList(name, selectedText); listDialog = false }) { Text(name) }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (lists.isEmpty()) {
+                            Text("Create a list below, then save this clipboard item to it.")
+                        } else {
+                            Text("Choose a list", fontWeight = FontWeight.SemiBold)
+                            lists.forEach { name ->
+                                TextButton(
+                                    onClick = {
+                                        saveToList(name, selectedText)
+                                        listDialog = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Folder, null, tint = Color(0xFFB4862E))
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(name, Modifier.weight(1f))
+                                    }
+                                }
+                            }
                         }
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = newListName,
+                            onValueChange = { newListName = it },
+                            singleLine = true,
+                            label = { Text("Create new list") },
+                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            "The selected clipboard item will be saved automatically.",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
                     }
                 },
-                confirmButton = { TextButton(onClick = { listDialog = false }) { Text("Close") } }
+                confirmButton = {
+                    Button(
+                        enabled = newListName.trim().isNotEmpty(),
+                        onClick = {
+                            val name = newListName.trim()
+                            val prefs = getSharedPreferences("rss_clipboard", MODE_PRIVATE)
+                            val updated = prefs.getStringSet("clip_lists", emptySet()).orEmpty().toMutableSet()
+                            updated.add(name)
+                            prefs.edit().putStringSet("clip_lists", updated).apply()
+                            saveToList(name, selectedText)
+                            listDialog = false
+                        }
+                    ) {
+                        Text("Create & Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { listDialog = false }) { Text("Cancel") }
+                }
             )
         }
         Scaffold(topBar = {
