@@ -38,6 +38,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -212,7 +213,7 @@ class ClipboardActivity : ComponentActivity() {
     @Composable private fun RegisterScreen(done:(String,String)->Unit) {
         var name by remember{mutableStateOf("")}; var email by remember{mutableStateOf("")}; var busy by remember{mutableStateOf(false)}
         Box(Modifier.fillMaxSize()) { AnimatedBackground(); Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
-            Logo(Modifier.size(120.dp)); Spacer(Modifier.height(18.dp)); Text("Create your RSS account",28.sp,fontWeight=FontWeight.Bold); Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Logo(Modifier.size(120.dp)); Spacer(Modifier.height(18.dp)); Text("Create your RSS account",fontSize=28.sp,fontWeight=FontWeight.Bold); Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp)); OutlinedTextField(name,{name=it},label={Text("Full name")},leadingIcon={Icon(Icons.Default.Person,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp)); OutlinedTextField(email,{email=it},label={Text("Email address")},leadingIcon={Icon(Icons.Default.Email,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
             Spacer(Modifier.height(18.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;done(name,email)},Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
@@ -220,7 +221,7 @@ class ClipboardActivity : ComponentActivity() {
         }}
     }
 
-    @Composable private fun WelcomeScreen(name:String,next:()->Unit) { Box(Modifier.fillMaxSize()){AnimatedBackground();Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){Logo(Modifier.size(140.dp));Text("Welcome, $name",30.sp,fontWeight=FontWeight.Bold);Text("Your clipboard, organized and ready.",color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(24.dp));Button(next){Text("Continue")}}}}
+    @Composable private fun WelcomeScreen(name:String,next:()->Unit) { Box(Modifier.fillMaxSize()){AnimatedBackground();Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){Logo(Modifier.size(140.dp));Text("Welcome, $name",fontSize=30.sp,fontWeight=FontWeight.Bold);Text("Your clipboard, organized and ready.",color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(24.dp));Button(next){Text("Continue")}}}}
 
     @Composable private fun FeaturesScreen(next:()->Unit) {
         var page by remember{mutableStateOf(0)}
@@ -233,7 +234,7 @@ class ClipboardActivity : ComponentActivity() {
         val f=fs[page]
         Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
             AnimatedContent(page,label="feature"){ Icon(f.icon,null,Modifier.size(76.dp),tint=MaterialTheme.colorScheme.primary) }
-            Spacer(Modifier.height(22.dp));AnimatedContent(page,label="title"){Text(f.title,28.sp,fontWeight=FontWeight.Bold)}
+            Spacer(Modifier.height(22.dp));AnimatedContent(page,label="title"){Text(f.title,fontSize=28.sp,fontWeight=FontWeight.Bold)}
             Spacer(Modifier.height(10.dp));Text(f.body,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){fs.indices.forEach{i->Box(Modifier.size(if(i==page)10.dp else 7.dp).clip(CircleShape).background(if(i==page)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant))}}
             Spacer(Modifier.height(28.dp));Button({if(page<fs.lastIndex)page++ else next()},Modifier.fillMaxWidth()){Text(if(page<fs.lastIndex)"Next" else "Open RSS Clipboard")}
@@ -242,8 +243,9 @@ class ClipboardActivity : ComponentActivity() {
 
     @Composable private fun MainScreen(account:Account?,onAccountUpdate:(Account?)->Unit,onMenu:()->Unit,onRefresh:()->Unit) {
         var query by remember{mutableStateOf("")}; var clips by remember{mutableStateOf(loadClips())}; var saveText by remember{mutableStateOf<String?>(null)}
-        LaunchedEffect(Unit){while(true){delay(1500);clips=loadClips()}}\n        LaunchedEffect(account?.appKey){ if(account!=null) while(true){ delay(30000); syncNow(account) } }
-        val pending=account?.let{!it.verified}
+        LaunchedEffect(Unit){while(true){delay(1500);clips=loadClips()}}
+        LaunchedEffect(account?.appKey){ if(account!=null) while(true){ delay(30000); syncNow(account) } }
+        val pending=account?.verified==false
         Scaffold(topBar={TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically){Logo(Modifier.size(38.dp));Spacer(Modifier.width(10.dp));Text("RSS Clipboard")}},navigationIcon={IconButton(onMenu){Icon(Icons.Default.Menu,"Menu")}})}){pad->
             LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=28.dp)){
                 if(pending)item{VerificationBanner(account!!){updated -> onAccountUpdate(updated)}}
@@ -272,7 +274,7 @@ class ClipboardActivity : ComponentActivity() {
         var selected by remember{mutableStateOf<String?>(null)};var newName by remember{mutableStateOf("")};val lists=loadLists()
         AlertDialog(onDismissRequest=close,title={Text("Save to list")},text={Column{if(lists.isEmpty())Text("Create a list first.") else lists.forEach{name->TextButton({saveToList(name,text);close()},Modifier.fillMaxWidth()){Icon(Icons.Default.Folder,null);Spacer(Modifier.width(8.dp));Text(name)}};OutlinedTextField(newName,{newName=it},label={Text("New list")},singleLine=true,modifier=Modifier.fillMaxWidth())}},confirmButton={Button(enabled=newName.isNotBlank(),onClick={createList(newName.trim());saveToList(newName.trim(),text);close()}){Text("Create & Save")}},dismissButton={TextButton(close){Text("Cancel")}})
     }
-    private fun loadLists():Set<String>=getSharedPreferences(PREFS,MODE_PRIVATE).getStringSet("clip_lists",emptySet()).orEmpty()
+    private fun loadLists(): Set<String> =getSharedPreferences(PREFS,MODE_PRIVATE).getStringSet("clip_lists",emptySet()).orEmpty()
     private fun createList(n:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("clip_lists",emptySet()).orEmpty().toMutableSet();s.add(n);p.edit().putStringSet("clip_lists",s).apply()}
     private fun saveToList(n:String,t:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("list_$n",emptySet()).orEmpty().toMutableSet();s.add(t);p.edit().putStringSet("list_$n",s).apply();loadAccount()?.let{syncNow(it)}}
 
