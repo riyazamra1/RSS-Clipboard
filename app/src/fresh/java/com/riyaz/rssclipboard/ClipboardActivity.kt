@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -108,6 +109,7 @@ class ClipboardActivity : ComponentActivity() {
         )
 
         MaterialTheme(colorScheme=scheme) {
+            SideEffect { window.statusBarColor=scheme.background.toArgb(); window.navigationBarColor=scheme.background.toArgb() }
             when(stage) {
                 "register" -> RegisterScreen { name,email -> register(name,email) { a ->
                     account=a; registered=true; prefs.edit().putBoolean("registered",true).putString("name",a.name).putString("email",a.email).putString("app_key",a.appKey).putLong("verification_expires",a.expiresAt ?: 0L).apply()
@@ -115,7 +117,7 @@ class ClipboardActivity : ComponentActivity() {
                 } }
                 "welcome" -> WelcomeScreen(account?.name ?: "there") { stage="features" }
                 "features" -> FeaturesScreen { stage="main" }
-                "main" -> MainScreen(account, onMenu={drawer=true}, onRefresh={})
+                "main" -> MainScreen(account, onAccountUpdate={account=it}, onMenu={drawer=true}, onRefresh={})
                 "settings" -> SettingsScreen(theme, {theme=it;prefs.edit().putString("theme",it).apply()}, account, onBack={stage="main"})
                 "about" -> StaticScreen(UiPage("About RSS Clipboard","RSS Clipboard is a lightweight clipboard organizer by Razeen Secure Solution.",Icons.Default.Info),{stage="main"})
                 "contact" -> StaticScreen(UiPage("Contact","Razeen Secure Solution\nEmail: rsscctvsolution@gmail.com\n077 115 5504 | 070 155 5504",Icons.Default.Email),{stage="main"})
@@ -146,7 +148,10 @@ class ClipboardActivity : ComponentActivity() {
                 val key=result.optString("app_key")
                 if(key.isBlank()) return@launch
                 val expires=if(result.optBoolean("verification_required",false)) System.currentTimeMillis()+DAY else 0L
-                val a=Account(n,e,key,!result.optBoolean("verification_required",false),if(expires>0)expires else null)
+                val a0=Account(n,e,key,!result.optBoolean("verification_required",false),if(expires>0)expires else null)
+                val verification=if(!a0.verified) try { CoreClient.get("/api/v1/license/verification-status?email="+java.net.URLEncoder.encode(e,"UTF-8")+"&project_key="+APP_ID) } catch (_:Exception) { JSONObject() } else JSONObject()
+                val serverExpires=verification.optLong("verification_expires_at",0L)
+                val a=if(serverExpires>0) a0.copy(expiresAt=serverExpires) else a0
                 getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("verified",a.verified).apply()
                 onSuccess(a)
                 syncNow(a)
@@ -235,13 +240,13 @@ class ClipboardActivity : ComponentActivity() {
         }
     }
 
-    @Composable private fun MainScreen(account:Account?,onMenu:()->Unit,onRefresh:()->Unit) {
+    @Composable private fun MainScreen(account:Account?,onAccountUpdate:(Account?)->Unit,onMenu:()->Unit,onRefresh:()->Unit) {
         var query by remember{mutableStateOf("")}; var clips by remember{mutableStateOf(loadClips())}; var saveText by remember{mutableStateOf<String?>(null)}
-        LaunchedEffect(Unit){while(true){delay(1500);clips=loadClips()}}
+        LaunchedEffect(Unit){while(true){delay(1500);clips=loadClips()}}\n        LaunchedEffect(account?.appKey){ if(account!=null) while(true){ delay(30000); syncNow(account) } }
         val pending=account?.let{!it.verified}
         Scaffold(topBar={TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically){Logo(Modifier.size(38.dp));Spacer(Modifier.width(10.dp));Text("RSS Clipboard")}},navigationIcon={IconButton(onMenu){Icon(Icons.Default.Menu,"Menu")}})}){pad->
             LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=28.dp)){
-                if(pending)item{VerificationBanner(account!!)}
+                if(pending)item{VerificationBanner(account!!){updated -> onAccountUpdate(updated)}}
                 item{OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Search clipboard")},leadingIcon={Icon(Icons.Default.Search,null)})}
                 val filtered=clips.filter{it.text.contains(query,true)}
                 if(filtered.isEmpty())item{Box(Modifier.fillMaxWidth().height(260.dp),contentAlignment=Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Default.ContentCopy,null,Modifier.size(52.dp),tint=MaterialTheme.colorScheme.primary);Text("No clipboard items yet",fontWeight=FontWeight.Bold);Text("Copy something outside RSS Clipboard.",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
@@ -251,12 +256,12 @@ class ClipboardActivity : ComponentActivity() {
         if(saveText!=null)SaveDialog(saveText!!,{saveText=null})
     }
 
-    @Composable private fun VerificationBanner(a:Account) {
+    @Composable private fun VerificationBanner(a:Account,onUpdated:(Account)->Unit) {
         var remaining by remember{mutableLongStateOf((a.expiresAt?:0L)-System.currentTimeMillis())};var status by remember{mutableStateOf("")}
         LaunchedEffect(a.email){while(true){remaining=(a.expiresAt?:0L)-System.currentTimeMillis();delay(1000)}}
         Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.secondaryContainer)){Column(Modifier.padding(14.dp)){Row{Icon(Icons.Default.MarkEmailUnread,null);Spacer(Modifier.width(8.dp));Text("Email Verification Pending",fontWeight=FontWeight.Bold)};Text(if(remaining>0)"Verify your email. Time remaining: "+formatCountdown(remaining) else "Verification window expired; request a new verification email.",fontSize=13.sp);Row{TextButton({checkVerification(a){status=it}}){Text("Check Status")};TextButton({resendVerification(a){status=it}}){Text("Resend")}};if(status.isNotBlank())Text(status,fontSize=12.sp)}}}
     
-    private fun checkVerification(a:Account,show:(String)->Unit){kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO){try{val r=CoreClient.get("/api/v1/license/verification-status?email="+java.net.URLEncoder.encode(a.email,"UTF-8")+"&project_key="+APP_ID);val ok=r.optBoolean("email_verified",false);getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("verified",ok).putLong("verification_expires",r.optLong("verification_expires_at",0L)).apply();withContext(Dispatchers.Main){show(if(ok)"Email verified. Restart/open Home to refresh." else "Still pending.")}}catch(_:Exception){withContext(Dispatchers.Main){show("Could not reach RSS Core.")}}}}
+    private fun checkVerification(a:Account,show:(String)->Unit){kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO){try{val r=CoreClient.get("/api/v1/license/verification-status?email="+java.net.URLEncoder.encode(a.email,"UTF-8")+"&project_key="+APP_ID);val ok=r.optBoolean("email_verified",false);val expires=r.optLong("verification_expires_at",0L); getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("verified",ok).putLong("verification_expires",expires).apply(); withContext(Dispatchers.Main){ onUpdated(a.copy(verified=ok,expiresAt=expires.takeIf{it>0})); show(if(ok)"Email verified." else "Still pending.")}}catch(_:Exception){withContext(Dispatchers.Main){show("Could not reach RSS Core.")}}}}
     private fun resendVerification(a:Account,show:(String)->Unit){kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO){try{CoreClient.post("/api/v1/license/resend-verification",JSONObject().put("email",a.email).put("display_name",a.name).put("project_key",APP_ID).put("device_id",deviceId()));withContext(Dispatchers.Main){show("Verification email sent.")}}catch(_:Exception){withContext(Dispatchers.Main){show("Resend failed. Check your connection.")}}}}
 
     private fun formatCountdown(ms:Long):String {val s=(ms/1000).coerceAtLeast(0);return String.format(Locale.US,"%02dh %02dm %02ds",s/3600,(s%3600)/60,s%60)}
@@ -276,7 +281,18 @@ class ClipboardActivity : ComponentActivity() {
     @Composable private fun StaticScreen(page:UiPage,back:()->Unit){Scaffold(topBar={TopAppBar(title={Text(page.title)},navigationIcon={IconButton(back){Icon(Icons.Default.ArrowBack,"Back")}})}){p->Column(Modifier.fillMaxSize().padding(p).padding(24.dp)){Icon(page.icon,null,Modifier.size(48.dp),tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(18.dp));Text(page.body,fontSize=16.sp,lineHeight=25.sp)}}}
 
     @Composable private fun Drawer(account:Account?,onClose:()->Unit,onNavigate:(String)->Unit) {
-        ModalDrawerSheet(Modifier.width(310.dp)){Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical=20.dp)){Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Logo(Modifier.size(58.dp));Spacer(Modifier.width(12.dp));Column{Text("RSS Clipboard",fontWeight=FontWeight.Bold,fontSize=20.sp);Text(account?.email ?: "RSS account",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}};DrawerItem(Icons.Default.Home,"Home"){onNavigate("home")};DrawerItem(Icons.Default.Settings,"Settings"){onNavigate("settings")};DrawerItem(Icons.Default.Info,"About"){onNavigate("about")};DrawerItem(Icons.Default.Email,"Contact"){onNavigate("contact")};DrawerItem(Icons.Default.PrivacyTip,"Privacy"){onNavigate("privacy")};DrawerItem(Icons.Default.Description,"Terms"){onNavigate("terms")};Spacer(Modifier.weight(1f));Divider();Column(Modifier.fillMaxWidth().padding(18.dp),horizontalAlignment=Alignment.CenterHorizontally){Image(painterResource(R.drawable.rss_company_logo),"Razeen Secure Solution",Modifier.size(78.dp),contentScale=ContentScale.Fit);Spacer(Modifier.height(8.dp));Text("Razeen Secure Solution",fontWeight=FontWeight.Bold);Text("www.rssapps.cv",fontSize=12.sp);Text("RSS Clipboard",fontSize=12.sp);Text("Version 2.0.0",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.22f))) {
+            Row(Modifier.fillMaxSize()) {
+                Column(Modifier.width(310.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surface).verticalScroll(rememberScrollState())) {
+                    Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Logo(Modifier.size(58.dp));Spacer(Modifier.width(12.dp));Column{Text("RSS Clipboard",fontWeight=FontWeight.Bold,fontSize=20.sp);Text(account?.email ?: "RSS account",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+                    DrawerItem(Icons.Default.Home,"Home"){onNavigate("home")};DrawerItem(Icons.Default.Settings,"Settings"){onNavigate("settings")};DrawerItem(Icons.Default.Info,"About"){onNavigate("about")};DrawerItem(Icons.Default.Email,"Contact"){onNavigate("contact")};DrawerItem(Icons.Default.PrivacyTip,"Privacy"){onNavigate("privacy")};DrawerItem(Icons.Default.Description,"Terms"){onNavigate("terms")}
+                    Spacer(Modifier.weight(1f));Divider()
+                    Column(Modifier.fillMaxWidth().padding(18.dp),horizontalAlignment=Alignment.CenterHorizontally){Image(painterResource(R.drawable.rss_company_logo),"Razeen Secure Solution",Modifier.size(78.dp),contentScale=ContentScale.Fit);Spacer(Modifier.height(8.dp));Text("Razeen Secure Solution",fontWeight=FontWeight.Bold);Text("www.rssapps.cv",fontSize=12.sp);Text("RSS Clipboard",fontSize=12.sp);Text("Version 2.0.0",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                }
+                Spacer(Modifier.weight(1f).fillMaxHeight().clickable{onClose()})
+            }
+        }
+    }
     @Composable private fun DrawerItem(icon:ImageVector,title:String,click:()->Unit){ListItem(headlineContent={Text(title)},leadingContent={Icon(icon,null,tint=MaterialTheme.colorScheme.primary)},modifier=Modifier.clickable{click()})}
 }
 
