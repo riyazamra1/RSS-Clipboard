@@ -161,7 +161,7 @@ class ClipboardActivity : ComponentActivity() {
         }
     }
 
-    private fun syncNow(a:Account) {
+    private fun syncNow(a:Account) {\n        if(!getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean("cloud_sync_enabled",true)) return
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
             try {
                 val local=JSONObject().put("schemaVersion",1).put("updatedAt",System.currentTimeMillis()).put("clips",JSONArray(getSharedPreferences(PREFS,MODE_PRIVATE).getString("clips_json","[]"))).put("lists",JSONObject(getListsJson()))
@@ -212,12 +212,12 @@ class ClipboardActivity : ComponentActivity() {
     @Composable private fun Logo(modifier:Modifier=Modifier) = Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",modifier,contentScale=ContentScale.Fit)
 
     @Composable private fun RegisterScreen(done:(String,String)->Unit) {
-        var name by remember{mutableStateOf("")}; var email by remember{mutableStateOf("")}; var busy by remember{mutableStateOf(false)}
+        var name by remember{mutableStateOf("")}; var email by remember{mutableStateOf("")}; var cloudSync by remember{mutableStateOf(true)}; var busy by remember{mutableStateOf(false)}
         Box(Modifier.fillMaxSize()) { AnimatedBackground(); Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
             Logo(Modifier.size(120.dp)); Spacer(Modifier.height(18.dp)); Text("Create your RSS account",fontSize=28.sp,fontWeight=FontWeight.Bold); Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp)); OutlinedTextField(name,{name=it},label={Text("Full name")},leadingIcon={Icon(Icons.Default.Person,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp)); OutlinedTextField(email,{email=it},label={Text("Email address")},leadingIcon={Icon(Icons.Default.Email,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
-            Spacer(Modifier.height(18.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;done(name,email)},Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
+            Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Checkbox(cloudSync,{cloudSync=it});Text("Enable RSS Cloud backup across my devices",fontSize=13.sp)}; Spacer(Modifier.height(10.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("cloud_sync_enabled",cloudSync).apply();done(name,email)},Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
             Spacer(Modifier.height(10.dp)); Text("Email verification is required. You can enter the app while verification is pending.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }}
     }
@@ -245,7 +245,7 @@ class ClipboardActivity : ComponentActivity() {
     @Composable private fun MainScreen(account:Account?,onAccountUpdate:(Account?)->Unit,onMenu:()->Unit,onRefresh:()->Unit) {
         var query by remember{mutableStateOf("")}; var clips by remember{mutableStateOf(loadClips())}; var saveText by remember{mutableStateOf<String?>(null)}
         LaunchedEffect(Unit){while(true){delay(1500);clips=loadClips()}}
-        LaunchedEffect(account?.appKey){ if(account!=null) while(true){ delay(30000); syncNow(account) } }
+        LaunchedEffect(account?.appKey){ if(account!=null && getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean("cloud_sync_enabled",true)) while(true){ delay(30000); syncNow(account) } }
         val pending=account?.verified==false
         Scaffold(topBar={TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically){Logo(Modifier.size(38.dp));Spacer(Modifier.width(10.dp));Text("RSS Clipboard")}},navigationIcon={IconButton(onMenu){Icon(Icons.Default.Menu,"Menu")}})}){pad->
             LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=28.dp)){
