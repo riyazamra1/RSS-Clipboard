@@ -1,54 +1,67 @@
 package com.riyaz.rssclipboard
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.Bundle
+import android.Manifest
+import android.content.*
+import android.os.*
+import android.provider.Settings
+import android.util.Patterns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
-private data class ClipItem(val text: String, val type: String, val time: String)
+private const val CORE_URL = "https://rsscore.cv"
+private const val APP_ID = "rss-clipboard"
+private const val PREFS = "rss_clipboard"
+private const val DAY = 24L * 60L * 60L * 1000L
+
+private data class ClipItem(val text:String,val type:String,val time:Long)
+private data class Account(val name:String,val email:String,val appKey:String,val verified:Boolean,val expiresAt:Long?)
+private data class UiPage(val title:String,val body:String,val icon:ImageVector)
 
 class ClipboardActivity : ComponentActivity() {
-    private lateinit var clipboard: ClipboardManager
-    private var refreshReceiver: BroadcastReceiver? = null
+    private var receiver: BroadcastReceiver? = null
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         startClipboardCapture()
-        refreshReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "com.riyaz.rssclipboard.CLIPBOARD_UPDATED") {
-                    refreshUi()
-                }
+        receiver = object: BroadcastReceiver() {
+            override fun onReceive(context:Context?, intent:Intent?) {
+                if (intent?.action == "com.riyaz.rssclipboard.CLIPBOARD_UPDATED") sendRefresh()
             }
         }
         setContent { App() }
@@ -56,366 +69,227 @@ class ClipboardActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        refreshReceiver?.let {
-            registerReceiver(it, IntentFilter("com.riyaz.rssclipboard.CLIPBOARD_UPDATED"), Context.RECEIVER_NOT_EXPORTED)
-        }
+        receiver?.let { ContextCompat.registerReceiver(this,it,IntentFilter("com.riyaz.rssclipboard.CLIPBOARD_UPDATED"),ContextCompat.RECEIVER_NOT_EXPORTED) }
     }
 
     override fun onStop() {
-        refreshReceiver?.let {
-            try { unregisterReceiver(it) } catch (_: IllegalArgumentException) {}
-        }
+        receiver?.let { try { unregisterReceiver(it) } catch (_:Exception) {} }
         super.onStop()
     }
 
-    private fun refreshUi() {
-        // Compose state is refreshed through the Activity's lifecycle on next recomposition.
-        setContent { App() }
-    }
+    private fun sendRefresh() { /* UI polls/reloads when resumed; capture remains service-owned. */ }
 
     private fun startClipboardCapture() {
-        val intent = Intent(this, ClipboardCaptureService::class.java)
-        androidx.core.content.ContextCompat.startForegroundService(this, intent)
+        ContextCompat.startForegroundService(this,Intent(this,ClipboardCaptureService::class.java))
     }
 
-    @Composable
-    private fun App() {
-        var splash by remember { mutableStateOf(true) }
-        var registered by remember {
-            mutableStateOf(getSharedPreferences("rss_clipboard", MODE_PRIVATE).getBoolean("registered", false))
-        }
-        var stage by remember { mutableStateOf(if (registered) "welcome" else "register") }
-        var clips by remember { mutableStateOf(loadClips()) }
+    private fun deviceId():String = Settings.Secure.getString(contentResolver,Settings.Secure.ANDROID_ID) ?: "android-"+Build.FINGERPRINT.hashCode()
+
+    @Composable private fun App() {
+        val prefs=getSharedPreferences(PREFS,MODE_PRIVATE)
+        var theme by remember { mutableStateOf(prefs.getString("theme","system") ?: "system") }
+        var registered by remember { mutableStateOf(prefs.getBoolean("registered",false) && !prefs.getString("app_key",null).isNullOrBlank()) }
+        var stage by remember { mutableStateOf(if(registered) "main" else "register") }
         var drawer by remember { mutableStateOf(false) }
+        var selectedPage by remember { mutableStateOf("home") }
+        var account by remember { mutableStateOf(loadAccount()) }
 
-        LaunchedEffect(Unit) { delay(900); splash = false }
+        val dark = when(theme) {
+            "dark" -> true
+            "light" -> false
+            else -> androidx.compose.foundation.isSystemInDarkTheme()
+        }
+        val scheme = if(dark) darkColorScheme(
+            primary=Color(0xFFD2A94C), secondary=Color(0xFFB794F4), background=Color(0xFF101010), surface=Color(0xFF171717)
+        ) else lightColorScheme(
+            primary=Color(0xFFB4862E), secondary=Color(0xFF7357E8), background=Color(0xFFF8F7F3), surface=Color.White
+        )
 
-        MaterialTheme(colorScheme = lightColorScheme(
-            primary = Color(0xFFB4862E),
-            onPrimary = Color.White,
-            surface = Color(0xFFF8F7F3),
-            background = Color(0xFFF8F7F3)
-        )) {
-            if (splash) SplashScreen() else when (stage) {
-                "register" -> RegisterScreen {
-                    getSharedPreferences("rss_clipboard", MODE_PRIVATE).edit()
-                        .putBoolean("registered", true).putString("name", it).apply()
-                    registered = true
-                    stage = "welcome"
-                }
-                "welcome" -> WelcomeScreen { stage = "features" }
-                "features" -> FeaturesScreen { stage = "main" }
-                "main" -> MainScreen(clips, { clips = loadClips() }, { drawer = true })
-                "settings" -> SettingsScreen { stage = "main" }
-                "about" -> AboutScreen { stage = "main" }
+        MaterialTheme(colorScheme=scheme) {
+            when(stage) {
+                "register" -> RegisterScreen { name,email -> register(name,email) { a ->
+                    account=a; registered=true; prefs.edit().putBoolean("registered",true).putString("name",a.name).putString("email",a.email).putString("app_key",a.appKey).putLong("verification_expires",a.expiresAt ?: 0L).apply()
+                    stage="welcome"
+                } }
+                "welcome" -> WelcomeScreen(account?.name ?: "there") { stage="features" }
+                "features" -> FeaturesScreen { stage="main" }
+                "main" -> MainScreen(account, onMenu={drawer=true}, onRefresh={})
+                "settings" -> SettingsScreen(theme, {theme=it;prefs.edit().putString("theme",it).apply()}, account, onBack={stage="main"})
+                "about" -> StaticScreen(UiPage("About RSS Clipboard","RSS Clipboard is a lightweight clipboard organizer by Razeen Secure Solution.",Icons.Default.Info),{stage="main"})
+                "contact" -> StaticScreen(UiPage("Contact","Razeen Secure Solution\nEmail: rsscctvsolution@gmail.com\n077 115 5504 | 070 155 5504",Icons.Default.Email),{stage="main"})
+                "privacy" -> StaticScreen(UiPage("Privacy","Clipboard content is kept locally by default. Cloud backup is opt-in and scoped to the signed-in RSS Clipboard account. Android and device security restrictions apply to clipboard access.",Icons.Default.PrivacyTip),{stage="main"})
+                "terms" -> StaticScreen(UiPage("Terms","Use RSS Clipboard only with content you are permitted to copy and store. Service availability depends on Android, RSS Core and network conditions.",Icons.Default.Description),{stage="main"})
             }
-            if (drawer) Drawer(
-                onClose = { drawer = false },
-                onHome = { drawer = false; stage = "main" },
-                onSettings = { drawer = false; stage = "settings" },
-                onAbout = { drawer = false; stage = "about" }
+            if(drawer) Drawer(
+                account=account,
+                onClose={drawer=false},
+                onNavigate={p -> drawer=false; selectedPage=p; stage=when(p){"home"->"main";"settings"->"settings";"about"->"about";"contact"->"contact";"privacy"->"privacy";else->"terms"}}
             )
         }
     }
 
-    private fun loadClips(): List<ClipItem> {
-        val json = org.json.JSONArray(
-            getSharedPreferences("rss_clipboard", MODE_PRIVATE)
-                .getString("clips_json", "[]")
+    private fun loadAccount():Account? {
+        val p=getSharedPreferences(PREFS,MODE_PRIVATE)
+        val email=p.getString("email",null) ?: return null
+        val key=p.getString("app_key",null) ?: return null
+        return Account(p.getString("name","") ?: "",email,key,p.getBoolean("verified",false),p.getLong("verification_expires",0L).takeIf{it>0})
+    }
+
+    private fun register(name:String,email:String,onSuccess:(Account)->Unit) {
+        val n=name.trim(); val e=email.trim().lowercase(Locale.US)
+        if(n.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(e).matches()) return
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.Main) {
+            try {
+                val result=CoreClient.post("/v1/license/register",JSONObject().put("email",e).put("display_name",n).put("project_key",APP_ID).put("device_id",deviceId()))
+                val key=result.optString("app_key")
+                if(key.isBlank()) return@launch
+                val expires=if(result.optBoolean("verification_required",false)) System.currentTimeMillis()+DAY else 0L
+                val a=Account(n,e,key,!result.optBoolean("verification_required",false),if(expires>0)expires else null)
+                getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("verified",a.verified).apply()
+                onSuccess(a)
+                syncNow(a)
+            } catch (_:Exception) {}
+        }
+    }
+
+    private fun syncNow(a:Account) {
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val local=JSONObject().put("schemaVersion",1).put("updatedAt",System.currentTimeMillis()).put("clips",JSONArray(getSharedPreferences(PREFS,MODE_PRIVATE).getString("clips_json","[]"))).put("lists",JSONObject(getListsJson()))
+                val remote=CoreClient.get("/api/v1/clipboard/sync",a.appKey)
+                val snap=remote.optString("snapshot","")
+                if(snap.isNotBlank()) {
+                    val r=JSONObject(snap)
+                    val remoteUpdated=r.optLong("updatedAt",0L)
+                    if(remoteUpdated>local.optLong("updatedAt")) saveRemote(r)
+                    else CoreClient.put("/api/v1/clipboard/sync",a.appKey,JSONObject().put("snapshot",local.toString()))
+                } else CoreClient.put("/api/v1/clipboard/sync",a.appKey,JSONObject().put("snapshot",local.toString()))
+            } catch (_:Exception) {}
+        }
+    }
+
+    private fun getListsJson():String {
+        val p=getSharedPreferences(PREFS,MODE_PRIVATE)
+        val out=JSONObject()
+        p.getStringSet("clip_lists",emptySet()).orEmpty().forEach { name -> out.put(name,JSONArray(p.getStringSet("list_$name",emptySet()).orEmpty().toList())) }
+        return out.toString()
+    }
+
+    private fun saveRemote(r:JSONObject) {
+        val p=getSharedPreferences(PREFS,MODE_PRIVATE)
+        val clips=r.optJSONArray("clips") ?: JSONArray()
+        p.edit().putString("clips_json",clips.toString()).apply()
+        val lists=r.optJSONObject("lists") ?: JSONObject()
+        val names=mutableSetOf<String>()
+        val ed=p.edit()
+        lists.keys().forEach { n ->
+            names.add(n)
+            val arr=lists.optJSONArray(n) ?: JSONArray()
+            val set=mutableSetOf<String>(); for(i in 0 until arr.length()) set.add(arr.optString(i))
+            ed.putStringSet("list_$n",set)
+        }
+        ed.putStringSet("clip_lists",names).apply()
+    }
+
+    @Composable private fun AnimatedBackground() {
+        val infinite=rememberInfiniteTransition(label="bg")
+        val x by infinite.animateFloat(0f,1f,infiniteRepeatable(tween(7000,easing=LinearEasing),RepeatMode.Reverse),label="x")
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.size(220.dp).offset(x.dp*80f,(-40).dp).alpha(.08f).background(MaterialTheme.colorScheme.primary,CircleShape))
+            Box(Modifier.size(180.dp).align(Alignment.BottomEnd).offset((-30).dp,x.dp*60f).alpha(.06f).background(MaterialTheme.colorScheme.secondary,CircleShape))
+        }
+    }
+
+    @Composable private fun Logo(modifier:Modifier=Modifier) = Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",modifier,contentScale=ContentScale.Fit)
+
+    @Composable private fun RegisterScreen(done:(String,String)->Unit) {
+        var name by remember{mutableStateOf("")}; var email by remember{mutableStateOf("")}; var busy by remember{mutableStateOf(false)}
+        Box(Modifier.fillMaxSize()) { AnimatedBackground(); Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
+            Logo(Modifier.size(120.dp)); Spacer(Modifier.height(18.dp)); Text("Create your RSS account",28.sp,fontWeight=FontWeight.Bold); Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(24.dp)); OutlinedTextField(name,{name=it},label={Text("Full name")},leadingIcon={Icon(Icons.Default.Person,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp)); OutlinedTextField(email,{email=it},label={Text("Email address")},leadingIcon={Icon(Icons.Default.Email,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
+            Spacer(Modifier.height(18.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;done(name,email)},Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
+            Spacer(Modifier.height(10.dp)); Text("Email verification is required. You can enter the app while verification is pending.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }}
+    }
+
+    @Composable private fun WelcomeScreen(name:String,next:()->Unit) { Box(Modifier.fillMaxSize()){AnimatedBackground();Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){Logo(Modifier.size(140.dp));Text("Welcome, $name",30.sp,fontWeight=FontWeight.Bold);Text("Your clipboard, organized and ready.",color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(24.dp));Button(next){Text("Continue")}}}}
+
+    @Composable private fun FeaturesScreen(next:()->Unit) {
+        var page by remember{mutableStateOf(0)}
+        val fs=listOf(
+            UiPage("Capture automatically","Clipboard capture stays in the foreground service even after the app UI is closed, subject to Android/device policy.",Icons.Default.ContentCopy),
+            UiPage("Organize instantly","Keep a 24-hour history, classify URLs and email addresses, and save items into named lists.",Icons.Default.Folder),
+            UiPage("Sync across devices","RSS Core provides account-scoped cloud backup for RSS Clipboard when network access is available.",Icons.Default.CloudSync),
+            UiPage("Your settings","Use Light, Dark or System theme and access RSS information, privacy, terms and contact pages.",Icons.Default.Settings)
         )
-        return buildList {
-            for (i in 0 until json.length()) {
-                val item = json.optJSONObject(i) ?: continue
-                val text = item.optString("text")
-                if (text.isBlank()) continue
-                val type = item.optString("type", "Text")
-                val time = item.optLong("time", 0L)
-                val stamp = if (time > 0L) {
-                    SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(time))
-                } else ""
-                if (time >= System.currentTimeMillis() - 24L * 60L * 60L * 1000L) {
-                    add(ClipItem(text, type, stamp))
-                }
-            }
-        }.sortedByDescending { it.time }
-    }
-
-    @Composable private fun Logo(modifier: Modifier = Modifier) {
-        Image(
-            painter = painterResource(id = R.drawable.rss_clipboard_logo),
-            contentDescription = "RSS Clipboard logo",
-            modifier = modifier,
-            contentScale = ContentScale.Fit
-        )
-    }
-
-    @Composable private fun SplashScreen() {
-        Box(Modifier.fillMaxSize().background(Color(0xFFF8F7F3)), contentAlignment = Alignment.Center) {
-            Logo(Modifier.size(180.dp))
+        val f=fs[page]
+        Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
+            AnimatedContent(page,label="feature"){ Icon(f.icon,null,Modifier.size(76.dp),tint=MaterialTheme.colorScheme.primary) }
+            Spacer(Modifier.height(22.dp));AnimatedContent(page,label="title"){Text(f.title,28.sp,fontWeight=FontWeight.Bold)}
+            Spacer(Modifier.height(10.dp));Text(f.body,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(24.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){fs.indices.forEach{i->Box(Modifier.size(if(i==page)10.dp else 7.dp).clip(CircleShape).background(if(i==page)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant))}}
+            Spacer(Modifier.height(28.dp));Button({if(page<fs.lastIndex)page++ else next()},Modifier.fillMaxWidth()){Text(if(page<fs.lastIndex)"Next" else "Open RSS Clipboard")}
         }
     }
 
-    @Composable private fun RegisterScreen(onDone: (String) -> Unit) {
-        var name by remember { mutableStateOf("") }
-        Box(Modifier.fillMaxSize().background(Color(0xFFF8F7F3)).padding(28.dp)) {
-            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Logo(Modifier.size(120.dp))
-                Spacer(Modifier.height(24.dp))
-                Text("Create your account", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Text("Set up RSS Clipboard on this device.", color = Color.Gray)
-                Spacer(Modifier.height(24.dp))
-                OutlinedTextField(name, { name = it }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(18.dp))
-                Button(onClick = { if (name.isNotBlank()) onDone(name.trim()) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Continue")
-                }
+    @Composable private fun MainScreen(account:Account?,onMenu:()->Unit,onRefresh:()->Unit) {
+        var query by remember{mutableStateOf("")}; var clips by remember{mutableStateOf(loadClips())}; var saveText by remember{mutableStateOf<String?>(null)}
+        LaunchedEffect(Unit){while(true){delay(1500);clips=loadClips()}}
+        val pending=account?.let{!it.verified}
+        Scaffold(topBar={TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically){Logo(Modifier.size(38.dp));Spacer(Modifier.width(10.dp));Text("RSS Clipboard")}},navigationIcon={IconButton(onMenu){Icon(Icons.Default.Menu,"Menu")}})}){pad->
+            LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=28.dp)){
+                if(pending)item{VerificationBanner(account!!)}
+                item{OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("Search clipboard")},leadingIcon={Icon(Icons.Default.Search,null)})}
+                val filtered=clips.filter{it.text.contains(query,true)}
+                if(filtered.isEmpty())item{Box(Modifier.fillMaxWidth().height(260.dp),contentAlignment=Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Default.ContentCopy,null,Modifier.size(52.dp),tint=MaterialTheme.colorScheme.primary);Text("No clipboard items yet",fontWeight=FontWeight.Bold);Text("Copy something outside RSS Clipboard.",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+                items(filtered,key={it.time.toString()+it.text}){c->Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp)){Column(Modifier.padding(16.dp)){Row(verticalAlignment=Alignment.CenterVertically){Icon(if(c.type=="URL")Icons.Default.Link else if(c.type=="Email")Icons.Default.Email else Icons.Default.ContentCopy,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(8.dp));Text(c.type,fontWeight=FontWeight.Bold);Spacer(Modifier.weight(1f));Text(SimpleDateFormat("HH:mm:ss",Locale.getDefault()).format(Date(c.time)),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)};Spacer(Modifier.height(8.dp));Text(c.text,maxLines=6);Spacer(Modifier.height(8.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){TextButton({copy(c.text)}){Text("Copy again")};TextButton({saveText=c.text}){Text("Save to list")}}}}}
             }
         }
+        if(saveText!=null)SaveDialog(saveText!!,{saveText=null})
     }
 
-    @Composable private fun WelcomeScreen(onNext: () -> Unit) {
-        Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Logo(Modifier.size(140.dp))
-                Spacer(Modifier.height(20.dp))
-                Text("Welcome to RSS Clipboard", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(10.dp))
-                Text("Keep useful copied text organized in one lightweight clipboard.", color = Color.Gray)
-                Spacer(Modifier.height(28.dp))
-                Button(onClick = onNext) { Text("See features") }
-            }
-        }
-    }
+    @Composable private fun VerificationBanner(a:Account) {
+        var remaining by remember{mutableLongStateOf((a.expiresAt?:0L)-System.currentTimeMillis())};var status by remember{mutableStateOf("")}
+        LaunchedEffect(a.email){while(true){remaining=(a.expiresAt?:0L)-System.currentTimeMillis();delay(1000)}}
+        Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.secondaryContainer)){Column(Modifier.padding(14.dp)){Row{Icon(Icons.Default.MarkEmailUnread,null);Spacer(Modifier.width(8.dp));Text("Email Verification Pending",fontWeight=FontWeight.Bold)};Text(if(remaining>0)"Verify your email. Time remaining: "+formatCountdown(remaining) else "Verification window expired; request a new verification email.",fontSize=13.sp);Row{TextButton({checkVerification(a){status=it}}){Text("Check Status")};TextButton({resendVerification(a){status=it}}){Text("Resend")}};if(status.isNotBlank())Text(status,fontSize=12.sp)}}}
+    
+    private fun checkVerification(a:Account,show:(String)->Unit){kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO){try{val r=CoreClient.get("/api/v1/license/verification-status?email="+java.net.URLEncoder.encode(a.email,"UTF-8")+"&project_key="+APP_ID);val ok=r.optBoolean("email_verified",false);getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("verified",ok).putLong("verification_expires",r.optLong("verification_expires_at",0L)).apply();withContext(Dispatchers.Main){show(if(ok)"Email verified. Restart/open Home to refresh." else "Still pending.")}}catch(_:Exception){withContext(Dispatchers.Main){show("Could not reach RSS Core.")}}}}
+    private fun resendVerification(a:Account,show:(String)->Unit){kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO){try{CoreClient.post("/api/v1/license/resend-verification",JSONObject().put("email",a.email).put("display_name",a.name).put("project_key",APP_ID).put("device_id",deviceId()));withContext(Dispatchers.Main){show("Verification email sent.")}}catch(_:Exception){withContext(Dispatchers.Main){show("Resend failed. Check your connection.")}}}}
 
-    @Composable private fun FeaturesScreen(onNext: () -> Unit) {
-        val features = listOf(
-            Triple(Icons.Default.ContentCopy, "Clipboard history", "Capture clipboard changes even when RSS Clipboard is closed."),
-            Triple(Icons.Default.Link, "Smart types", "Separate text, URLs and email addresses."),
-            Triple(Icons.Default.Security, "Private by design", "Data stays on this device unless a future backup feature is explicitly enabled.")
-        )
-        Column(Modifier.fillMaxSize().padding(24.dp)) {
-            Text("What you get", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(18.dp))
-            features.forEach { (icon, title, body) ->
-                Card(Modifier.fillMaxWidth().padding(vertical = 7.dp), shape = RoundedCornerShape(20.dp)) {
-                    Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(icon, null, tint = Color(0xFFB4862E), modifier = Modifier.size(30.dp))
-                        Spacer(Modifier.width(16.dp))
-                        Column { Text(title, fontWeight = FontWeight.Bold); Text(body, color = Color.Gray) }
-                    }
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            Button(onClick = onNext, Modifier.fillMaxWidth()) { Text("Open RSS Clipboard") }
-        }
+    private fun formatCountdown(ms:Long):String {val s=(ms/1000).coerceAtLeast(0);return String.format(Locale.US,"%02dh %02dm %02ds",s/3600,(s%3600)/60,s%60)}
+    private fun copy(s:String){(getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(ClipData.newPlainText("RSS Clipboard",s))}
+    private fun loadClips():List<ClipItem>{val j=JSONArray(getSharedPreferences(PREFS,MODE_PRIVATE).getString("clips_json","[]"));return buildList{for(i in 0 until j.length()){val o=j.optJSONObject(i)?:continue;val t=o.optString("text");val tm=o.optLong("time");if(t.isNotBlank()&&tm>=System.currentTimeMillis()-DAY)add(ClipItem(t,o.optString("type","Text"),tm))}}.sortedByDescending{it.time}}
+    
+    @Composable private fun SaveDialog(text:String,close:()->Unit) {
+        var selected by remember{mutableStateOf<String?>(null)};var newName by remember{mutableStateOf("")};val lists=loadLists()
+        AlertDialog(onDismissRequest=close,title={Text("Save to list")},text={Column{if(lists.isEmpty())Text("Create a list first.") else lists.forEach{name->TextButton({saveToList(name,text);close()},Modifier.fillMaxWidth()){Icon(Icons.Default.Folder,null);Spacer(Modifier.width(8.dp));Text(name)}};OutlinedTextField(newName,{newName=it},label={Text("New list")},singleLine=true,modifier=Modifier.fillMaxWidth())}},confirmButton={Button(enabled=newName.isNotBlank(),onClick={createList(newName.trim());saveToList(newName.trim(),text);close()}){Text("Create & Save")}},dismissButton={TextButton(close){Text("Cancel")}})
     }
+    private fun loadLists():Set<String>=getSharedPreferences(PREFS,MODE_PRIVATE).getStringSet("clip_lists",emptySet()).orEmpty()
+    private fun createList(n:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("clip_lists",emptySet()).orEmpty().toMutableSet();s.add(n);p.edit().putStringSet("clip_lists",s).apply()}
+    private fun saveToList(n:String,t:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("list_$n",emptySet()).orEmpty().toMutableSet();s.add(t);p.edit().putStringSet("list_$n",s).apply();loadAccount()?.let{syncNow(it)}}
 
-    @Composable private fun MainScreen(clips: List<ClipItem>, refresh: () -> Unit, openDrawer: () -> Unit) {
-        var query by remember { mutableStateOf("") }
-        var listDialog by remember { mutableStateOf(false) }
-        var selectedText by remember { mutableStateOf("") }
-        fun showSaveToList(text: String) { selectedText = text; listDialog = true }
-        val filtered = clips.filter { it.text.contains(query, true) }
-        if (listDialog) {
-            val lists = loadLists()
-            var newListName by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { listDialog = false },
-                title = { Text("Save to list") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (lists.isEmpty()) {
-                            Text("Create a list below, then save this clipboard item to it.")
-                        } else {
-                            Text("Choose a list", fontWeight = FontWeight.SemiBold)
-                            lists.forEach { name ->
-                                TextButton(
-                                    onClick = {
-                                        saveToList(name, selectedText)
-                                        listDialog = false
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Folder, null, tint = Color(0xFFB4862E))
-                                        Spacer(Modifier.width(10.dp))
-                                        Text(name, Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = newListName,
-                            onValueChange = { newListName = it },
-                            singleLine = true,
-                            label = { Text("Create new list") },
-                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            "The selected clipboard item will be saved automatically.",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        enabled = newListName.trim().isNotEmpty(),
-                        onClick = {
-                            val name = newListName.trim()
-                            val prefs = getSharedPreferences("rss_clipboard", MODE_PRIVATE)
-                            val updated = prefs.getStringSet("clip_lists", emptySet()).orEmpty().toMutableSet()
-                            updated.add(name)
-                            prefs.edit().putStringSet("clip_lists", updated).apply()
-                            saveToList(name, selectedText)
-                            listDialog = false
-                        }
-                    ) {
-                        Text("Create & Save")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { listDialog = false }) { Text("Cancel") }
-                }
-            )
-        }
-        Scaffold(topBar = {
-            @OptIn(ExperimentalMaterial3Api::class)
-            TopAppBar(
-                title = { Row(verticalAlignment = Alignment.CenterVertically) { Logo(Modifier.size(38.dp)); Spacer(Modifier.width(10.dp)); Text("RSS Clipboard") } },
-                navigationIcon = { IconButton(openDrawer) { Icon(Icons.Default.Menu, "Menu") } }
-            )
-        }) { pad ->
-            Column(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
-                OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search clipboard") }, leadingIcon = { Icon(Icons.Default.Search, null) })
-                Spacer(Modifier.height(12.dp))
-                if (filtered.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.ContentCopy, null, Modifier.size(48.dp), tint = Color.Gray)
-                            Text("No clipboard items yet", fontWeight = FontWeight.Bold)
-                            Text("Copy text anywhere. RSS Clipboard saves it automatically.", color = Color.Gray)
-                        }
-                    }
-                } else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(filtered) { item ->
-                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-                            Column(Modifier.padding(16.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(if (item.type == "URL") Icons.Default.Link else if (item.type == "Email") Icons.Default.Email else Icons.Default.TextFields, null, tint = Color(0xFFB4862E))
-                                    Spacer(Modifier.width(8.dp)); Text(item.type, fontWeight = FontWeight.Bold); Spacer(Modifier.weight(1f)); Text(item.time, fontSize = 11.sp, color = Color.Gray)
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Text(item.text, maxLines = 5)
-                                Spacer(Modifier.height(8.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = {
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("RSS Clipboard", item.text))
-                                        refresh()
-                                    }) { Text("Copy again") }
-                                    TextButton(onClick = { showSaveToList(item.text) }) { Text("Save to list") }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    @Composable private fun SettingsScreen(theme:String,setTheme:(String)->Unit,a:Account?,onBack:()->Unit) {Scaffold(topBar={TopAppBar(title={Text("Settings")},navigationIcon={IconButton(onBack){Icon(Icons.Default.ArrowBack,"Back")}})}){p->Column(Modifier.fillMaxSize().padding(p).padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("Appearance",fontWeight=FontWeight.Bold);listOf("system" to "System","light" to "Light","dark" to "Dark").forEach{(k,l)->ListItem(headlineContent={Text(l)},leadingContent={Icon(if(k=="dark")Icons.Default.DarkMode else if(k=="light")Icons.Default.LightMode else Icons.Default.Settings,null)},trailingContent={RadioButton(theme==k){setTheme(k)}})};Divider();Text("Account",fontWeight=FontWeight.Bold);Text(a?.email ?: "Not signed in");Text("RSS Core: $CORE_URL",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+
+    @Composable private fun StaticScreen(page:UiPage,back:()->Unit){Scaffold(topBar={TopAppBar(title={Text(page.title)},navigationIcon={IconButton(back){Icon(Icons.Default.ArrowBack,"Back")}})}){p->Column(Modifier.fillMaxSize().padding(p).padding(24.dp)){Icon(page.icon,null,Modifier.size(48.dp),tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(18.dp));Text(page.body,fontSize=16.sp,lineHeight=25.sp)}}}
+
+    @Composable private fun Drawer(account:Account?,onClose:()->Unit,onNavigate:(String)->Unit) {
+        ModalDrawerSheet(Modifier.width(310.dp)){Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical=20.dp)){Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Logo(Modifier.size(58.dp));Spacer(Modifier.width(12.dp));Column{Text("RSS Clipboard",fontWeight=FontWeight.Bold,fontSize=20.sp);Text(account?.email ?: "RSS account",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}};DrawerItem(Icons.Default.Home,"Home"){onNavigate("home")};DrawerItem(Icons.Default.Settings,"Settings"){onNavigate("settings")};DrawerItem(Icons.Default.Info,"About"){onNavigate("about")};DrawerItem(Icons.Default.Email,"Contact"){onNavigate("contact")};DrawerItem(Icons.Default.PrivacyTip,"Privacy"){onNavigate("privacy")};DrawerItem(Icons.Default.Description,"Terms"){onNavigate("terms")};Spacer(Modifier.weight(1f));Divider();Column(Modifier.fillMaxWidth().padding(18.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("Razeen Secure Solution",fontWeight=FontWeight.Bold);Text("www.rssapps.cv",fontSize=12.sp);Text("RSS Clipboard",fontSize=12.sp);Text("Version 2.0.0",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+    @Composable private fun DrawerItem(icon:ImageVector,title:String,click:()->Unit){ListItem(headlineContent={Text(title)},leadingContent={Icon(icon,null,tint=MaterialTheme.colorScheme.primary)},modifier=Modifier.clickable{click()})}
+}
+
+private object CoreClient {
+    private fun request(path:String,method:String,body:JSONObject?,appKey:String?=null):JSONObject {
+        val c=URL(CORE_URL+path).openConnection() as HttpURLConnection
+        c.requestMethod=method;c.connectTimeout=10000;c.readTimeout=15000;c.setRequestProperty("Accept","application/json");c.setRequestProperty("X-RSS-App-Id",APP_ID)
+        if(appKey!=null)c.setRequestProperty("X-RSS-App-Key",appKey)
+        if(body!=null){c.doOutput=true;c.setRequestProperty("Content-Type","application/json");c.outputStream.use{it.write(body.toString().toByteArray())}}
+        val stream=if(c.responseCode in 200..299)c.inputStream else c.errorStream
+        val raw=stream?.bufferedReader()?.use{it.readText()} ?: "{}"
+        if(c.responseCode !in 200..299)throw IllegalStateException(raw)
+        return JSONObject(raw)
     }
-
-    @Composable private fun Drawer(onClose: () -> Unit, onHome: () -> Unit, onSettings: () -> Unit, onAbout: () -> Unit) {
-        ModalDrawerSheet {
-            Spacer(Modifier.height(24.dp))
-            Column(Modifier.padding(24.dp)) { Logo(Modifier.size(72.dp)); Text("RSS Clipboard", fontWeight = FontWeight.Bold, fontSize = 20.sp) }
-            NavigationDrawerItem(label = { Text("Clipboard") }, selected = false, onClick = onHome, icon = { Icon(Icons.Default.ContentCopy, null) })
-            NavigationDrawerItem(label = { Text("Settings") }, selected = false, onClick = onSettings, icon = { Icon(Icons.Default.Settings, null) })
-            NavigationDrawerItem(label = { Text("About") }, selected = false, onClick = onAbout, icon = { Icon(Icons.Default.Info, null) })
-            Spacer(Modifier.weight(1f))
-            HorizontalDivider()
-            Text("Razeen Secure Solution", Modifier.padding(24.dp), fontWeight = FontWeight.SemiBold)
-        }
-    }
-
-    private fun loadLists(): List<String> =
-        getSharedPreferences("rss_clipboard", MODE_PRIVATE).getStringSet("clip_lists", emptySet()).orEmpty().sorted()
-
-    private fun saveToList(name: String, text: String) {
-        val prefs = getSharedPreferences("rss_clipboard", MODE_PRIVATE)
-        val key = "list_" + name
-        val values = prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
-        values.add(text)
-        prefs.edit().putStringSet(key, values).apply()
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable private fun SettingsScreen(back: () -> Unit) {
-        Scaffold(topBar = { TopAppBar(title = { Text("Settings") }, navigationIcon = { IconButton(back) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { pad ->
-            Column(Modifier.padding(pad).padding(20.dp)) {
-                Text("Appearance", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Text("The current build uses a clean light RSS interface.", color = Color.Gray)
-                Spacer(Modifier.height(24.dp))
-                Text("Clipboard capture", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Text("Background capture is enabled. RSS Clipboard monitors supported clipboard changes even when the app screen is closed. Android requires an ongoing foreground-service notification for continuous monitoring.", color = Color.Gray)
-                Spacer(Modifier.height(24.dp))
-                var newListName by remember { mutableStateOf("") }
-                var lists by remember { mutableStateOf(loadLists()) }
-                Text("Saved lists", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Text("Create lists such as Work, Personal or Projects, then use “Save to list” on any clipboard item.", color = Color.Gray)
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = newListName,
-                        onValueChange = { newListName = it },
-                        label = { Text("New list name") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(onClick = {
-                        val name = newListName.trim()
-                        if (name.isNotEmpty()) {
-                            val prefs = getSharedPreferences("rss_clipboard", MODE_PRIVATE)
-                            val updated = prefs.getStringSet("clip_lists", emptySet()).orEmpty().toMutableSet()
-                            updated.add(name)
-                            prefs.edit().putStringSet("clip_lists", updated).apply()
-                            lists = updated.sorted()
-                            newListName = ""
-                        }
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "Create list")
-                    }
-                }
-                if (lists.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    lists.forEach { name ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Folder, null, tint = Color(0xFFB4862E))
-                            Spacer(Modifier.width(10.dp))
-                            Text(name, Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable private fun AboutScreen(back: () -> Unit) {
-        Scaffold(topBar = { TopAppBar(title = { Text("About RSS Clipboard") }, navigationIcon = { IconButton(back) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { pad ->
-            Column(Modifier.padding(pad).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Logo(Modifier.size(110.dp))
-                Spacer(Modifier.height(18.dp))
-                Text("RSS Clipboard", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                Text("Lightweight clipboard organizer", color = Color.Gray)
-                Spacer(Modifier.height(18.dp))
-                Text("Razeen Secure Solution", fontWeight = FontWeight.SemiBold)
-                Text("rsscctvsolution@gmail.com", color = Color.Gray)
-            }
-        }
-    }
+    suspend fun post(path:String,body:JSONObject,appKey:String?=null)=withContext(Dispatchers.IO){request(path,"POST",body,appKey)}
+    suspend fun get(path:String,appKey:String?=null)=withContext(Dispatchers.IO){request(path,"GET",null,appKey)}
+    suspend fun put(path:String,appKey:String,body:JSONObject)=withContext(Dispatchers.IO){request(path,"PUT",body,appKey)}
 }
