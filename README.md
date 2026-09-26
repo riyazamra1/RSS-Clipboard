@@ -13,3 +13,5 @@ Lightweight native Android clipboard manager by Razeen Secure Solutions.
 - Automated GitHub Actions debug APK build
 
 Package: `com.riyaz.rssclipboard`
+
+<!-- CI verification trigger: 2026-09-26 -->
