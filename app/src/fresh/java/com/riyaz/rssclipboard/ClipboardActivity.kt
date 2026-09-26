@@ -39,7 +39,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -161,7 +160,8 @@ class ClipboardActivity : ComponentActivity() {
         }
     }
 
-    private fun syncNow(a:Account) {\n        if(!getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean("cloud_sync_enabled",true)) return
+    private fun syncNow(a:Account) {
+        if(!getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean("cloud_sync_enabled",true)) return
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
             try {
                 val local=JSONObject().put("schemaVersion",1).put("updatedAt",System.currentTimeMillis()).put("clips",JSONArray(getSharedPreferences(PREFS,MODE_PRIVATE).getString("clips_json","[]"))).put("lists",JSONObject(getListsJson()))
@@ -273,7 +273,7 @@ class ClipboardActivity : ComponentActivity() {
     
     @Composable private fun SaveDialog(text:String,close:()->Unit) {
         var selected by remember{mutableStateOf<String?>(null)};var newName by remember{mutableStateOf("")};val lists=loadLists()
-        AlertDialog(onDismissRequest=close,title={Text("Save to list")},text={Column{if(lists.isEmpty())Text("Create a list first.") else lists.forEach{name->TextButton({saveToList(name,text);close()},Modifier.fillMaxWidth()){Icon(Icons.Default.Folder,null);Spacer(Modifier.width(8.dp));Text(name)}};OutlinedTextField(newName,{newName=it},label={Text("New list")},singleLine=true,modifier=Modifier.fillMaxWidth())}},confirmButton={Button(enabled=newName.isNotBlank(),onClick={createList(newName.trim());saveToList(newName.trim(),text);close()}){Text("Create & Save")}},dismissButton={TextButton(close){Text("Cancel")}})
+        AlertDialog(onDismissRequest={close()},title={Text("Save to list")},text={Column{if(lists.isEmpty())Text("Create a list first.") else lists.forEach{name->TextButton({saveToList(name,text);close()},Modifier.fillMaxWidth()){Icon(Icons.Default.Folder,null);Spacer(Modifier.width(8.dp));Text(name)}};OutlinedTextField(newName,{newName=it},label={Text("New list")},singleLine=true,modifier=Modifier.fillMaxWidth())}},confirmButton={Button(enabled=newName.isNotBlank(),onClick={createList(newName.trim());saveToList(newName.trim(),text);close()}){Text("Create & Save")}},dismissButton={TextButton(close){Text("Cancel")}})
     }
     private fun loadLists(): Set<String> =getSharedPreferences(PREFS,MODE_PRIVATE).getStringSet("clip_lists",emptySet()).orEmpty()
     private fun createList(n:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("clip_lists",emptySet()).orEmpty().toMutableSet();s.add(n);p.edit().putStringSet("clip_lists",s).apply()}
