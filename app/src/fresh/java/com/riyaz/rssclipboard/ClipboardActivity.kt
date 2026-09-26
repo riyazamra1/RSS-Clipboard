@@ -272,9 +272,53 @@ class ClipboardActivity : ComponentActivity() {
     private fun loadClips():List<ClipItem>{val j=JSONArray(getSharedPreferences(PREFS,MODE_PRIVATE).getString("clips_json","[]"));return buildList{for(i in 0 until j.length()){val o=j.optJSONObject(i)?:continue;val t=o.optString("text");val tm=o.optLong("time");if(t.isNotBlank()&&tm>=System.currentTimeMillis()-DAY)add(ClipItem(t,o.optString("type","Text"),tm))}}.sortedByDescending{it.time}}
     
     @Composable private fun SaveDialog(text:String,close:()->Unit) {
-        var selected by remember{mutableStateOf<String?>(null)};var newName by remember{mutableStateOf("")};val lists=loadLists()
-        AlertDialog(onDismissRequest={close()},title={Text("Save to list")},text={Column{if(lists.isEmpty())Text("Create a list first.") else lists.forEach{name->TextButton({saveToList(name,text);close()},Modifier.fillMaxWidth()){Icon(Icons.Default.Folder,null);Spacer(Modifier.width(8.dp));Text(name)}};OutlinedTextField(newName,{newName=it},label={Text("New list")},singleLine=true,modifier=Modifier.fillMaxWidth())}},confirmButton={Button(enabled=newName.isNotBlank(),onClick={createList(newName.trim());saveToList(newName.trim(),text);close()}){Text("Create & Save")}},dismissButton={TextButton(close){Text("Cancel")}})
+        var newName by remember { mutableStateOf("") }
+        val lists = loadLists()
+        AlertDialog(
+            onDismissRequest = { close() },
+            title = { Text("Save to list") },
+            text = {
+                Column {
+                    if (lists.isEmpty()) {
+                        Text("Create a list first.")
+                    } else {
+                        lists.forEach { name ->
+                            TextButton(
+                                onClick = { saveToList(name, text); close() },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Folder, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(name)
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("New list") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = newName.isNotBlank(),
+                    onClick = {
+                        val name = newName.trim()
+                        createList(name)
+                        saveToList(name, text)
+                        close()
+                    }
+                ) { Text("Create & Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { close() }) { Text("Cancel") }
+            }
+        )
     }
+
     private fun loadLists(): Set<String> =getSharedPreferences(PREFS,MODE_PRIVATE).getStringSet("clip_lists",emptySet()).orEmpty()
     private fun createList(n:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("clip_lists",emptySet()).orEmpty().toMutableSet();s.add(n);p.edit().putStringSet("clip_lists",s).apply()}
     private fun saveToList(n:String,t:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("list_$n",emptySet()).orEmpty().toMutableSet();s.add(t);p.edit().putStringSet("list_$n",s).apply();loadAccount()?.let{syncNow(it)}}
