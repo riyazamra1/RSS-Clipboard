@@ -79,6 +79,8 @@ class ClipboardAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() = Unit
 
+    override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) = Unit
+
     override fun onDestroy() {
         listener?.let {
             try { clipboard.removePrimaryClipChangedListener(it) } catch (_: Exception) {}
