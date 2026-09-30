@@ -323,7 +323,34 @@ class ClipboardActivity : ComponentActivity() {
     private fun createList(n:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("clip_lists",emptySet()).orEmpty().toMutableSet();s.add(n);p.edit().putStringSet("clip_lists",s).apply()}
     private fun saveToList(n:String,t:String){val p=getSharedPreferences(PREFS,MODE_PRIVATE);val s=p.getStringSet("list_$n",emptySet()).orEmpty().toMutableSet();s.add(t);p.edit().putStringSet("list_$n",s).apply();loadAccount()?.let{syncNow(it)}}
 
-    @Composable private fun SettingsScreen(theme:String,setTheme:(String)->Unit,a:Account?,onBack:()->Unit) {Scaffold(topBar={TopAppBar(title={Text("Settings")},navigationIcon={IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,"Back")}})}){p->Column(Modifier.fillMaxSize().padding(p).padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("Appearance",fontWeight=FontWeight.Bold);listOf("system" to "System","light" to "Light","dark" to "Dark").forEach{(k,l)->ListItem(headlineContent={Text(l)},leadingContent={Icon(if(k=="dark")Icons.Default.DarkMode else if(k=="light")Icons.Default.LightMode else Icons.Default.Settings,null)},trailingContent={RadioButton(selected=theme==k,onClick={setTheme(k)})})};Divider();Text("Account",fontWeight=FontWeight.Bold);Text(a?.email ?: "Not signed in");Text("RSS Core: $CORE_URL",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+    @Composable private fun SettingsScreen(theme:String,setTheme:(String)->Unit,a:Account?,onBack:()->Unit) {
+        val accessibilityEnabled = remember { mutableStateOf(isClipboardAccessibilityEnabled()) }
+        Scaffold(topBar={TopAppBar(title={Text("Settings")},navigationIcon={IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,"Back")}})}){p->
+            Column(Modifier.fillMaxSize().padding(p).padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+                Text("Appearance",fontWeight=FontWeight.Bold)
+                listOf("system" to "System","light" to "Light","dark" to "Dark").forEach{(k,l)->
+                    ListItem(headlineContent={Text(l)},leadingContent={Icon(if(k=="dark")Icons.Default.DarkMode else if(k=="light")Icons.Default.LightMode else Icons.Default.Settings,null)},trailingContent={RadioButton(selected=theme==k,onClick={setTheme(k)})})
+                }
+                Divider()
+                Text("Background clipboard capture",fontWeight=FontWeight.Bold)
+                Text("Android 10+ restricts normal background clipboard reads. Enable RSS Clipboard in Android Accessibility settings for continuous capture while the app UI is closed.",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick={startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))},modifier=Modifier.fillMaxWidth()){
+                    Icon(Icons.Default.Security,null); Spacer(Modifier.width(8.dp))
+                    Text(if(accessibilityEnabled.value) "Accessibility capture enabled" else "Enable background capture")
+                }
+                Text(if(accessibilityEnabled.value) "RSS Clipboard accessibility capture is enabled." else "Without this optional permission, Android may block clipboard capture when RSS Clipboard is closed.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Account",fontWeight=FontWeight.Bold)
+                Text(a?.email ?: "Not signed in")
+                Text("RSS Core: $CORE_URL",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+
+    private fun isClipboardAccessibilityEnabled():Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+        val component = ComponentName(this, ClipboardAccessibilityService::class.java).flattenToString()
+        return enabled.split(':').any { it.equals(component, ignoreCase=true) }
+    }
 
     @Composable private fun StaticScreen(page:UiPage,back:()->Unit){Scaffold(topBar={TopAppBar(title={Text(page.title)},navigationIcon={IconButton(onClick=back){Icon(Icons.Default.ArrowBack,"Back")}})}){p->Column(Modifier.fillMaxSize().padding(p).padding(24.dp)){Icon(page.icon,null,Modifier.size(48.dp),tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(18.dp));Text(page.body,fontSize=16.sp,lineHeight=25.sp)}}}
 
