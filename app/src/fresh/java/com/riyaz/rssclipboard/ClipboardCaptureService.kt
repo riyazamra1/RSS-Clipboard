@@ -128,6 +128,12 @@ class ClipboardCaptureService : Service() {
         super.onDestroy()
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Keep capture independent of the Activity/task lifecycle. Android may
+        // recreate a killed service; START_STICKY asks the system to do so.
+        return START_STICKY
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
