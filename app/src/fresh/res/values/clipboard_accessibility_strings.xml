@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="clipboard_accessibility_description">RSS Clipboard uses this user-enabled service to capture clipboard changes while RSS Clipboard is closed. It does not read or control screen content.</string>
+</resources>
