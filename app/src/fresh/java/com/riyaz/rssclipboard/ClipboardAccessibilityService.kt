@@ -24,6 +24,11 @@ class ClipboardAccessibilityService : AccessibilityService() {
         clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         listener = ClipboardManager.OnPrimaryClipChangedListener { captureCurrentClip() }
         clipboard.addPrimaryClipChangedListener(listener)
+
+        // Capture the current primary clip when the service is (re)connected.
+        // This covers a value copied while RSS Clipboard was closed before
+        // Android recreated or reconnected the accessibility service.
+        captureCurrentClip()
     }
 
     private fun captureCurrentClip() {
