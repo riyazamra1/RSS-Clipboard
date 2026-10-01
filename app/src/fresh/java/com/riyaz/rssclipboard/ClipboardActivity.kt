@@ -278,6 +278,10 @@ class ClipboardActivity : ComponentActivity() {
         var termsAccepted by remember{mutableStateOf(false)}
         var busy by remember{mutableStateOf(false)}
 
+        LaunchedEffect(error) {
+            if(error.isNotBlank()) busy=false
+        }
+
         Column(
             Modifier
                 .fillMaxSize()
