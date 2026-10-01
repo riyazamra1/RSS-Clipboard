@@ -98,7 +98,7 @@ class ClipboardActivity : ComponentActivity() {
 
         LaunchedEffect(stage, registered) {
             if (stage == "splash") {
-                delay(900)
+                delay(1100)
                 stage = if (registered) "main" else "features"
             }
         }
@@ -266,7 +266,7 @@ class ClipboardActivity : ComponentActivity() {
             Image(
                 painter = painterResource(R.drawable.rss_clipboard_splash_logo),
                 contentDescription = "RSS Clipboard",
-                modifier = Modifier.size(220.dp).alpha(alpha),
+                modifier = Modifier.size(150.dp).alpha(alpha),
                 contentScale = ContentScale.Fit
             )
         }
@@ -275,63 +275,113 @@ class ClipboardActivity : ComponentActivity() {
     @Composable private fun RegisterScreen(error:String,done:(String,String)->Unit) {
         var name by remember{mutableStateOf("")}
         var email by remember{mutableStateOf("")}
-        var cloudSync by remember{mutableStateOf(true)}
         var termsAccepted by remember{mutableStateOf(false)}
         var busy by remember{mutableStateOf(false)}
 
         Column(
-            Modifier.fillMaxSize().padding(28.dp),
-            horizontalAlignment=Alignment.CenterHorizontally,
-            verticalArrangement=Arrangement.Center
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal=28.dp, vertical=24.dp),
+            horizontalAlignment=Alignment.CenterHorizontally
         ) {
-            Logo(Modifier.size(120.dp))
             Spacer(Modifier.height(18.dp))
-            Text("Create your RSS account",fontSize=28.sp,fontWeight=FontWeight.Bold)
-            Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(24.dp))
+            Logo(Modifier.size(110.dp))
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Create your RSS account",
+                fontSize=28.sp,
+                fontWeight=FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "One RSS account for your app and devices.",
+                color=MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(22.dp))
+
             OutlinedTextField(
-                name,{name=it},label={Text("Full name")},
+                value=name,
+                onValueChange={name=it},
+                label={Text("Full name")},
                 leadingIcon={Icon(Icons.Default.Person,null)},
-                singleLine=true,modifier=Modifier.fillMaxWidth()
+                singleLine=true,
+                modifier=Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                email,{email=it},label={Text("Email address")},
+                value=email,
+                onValueChange={email=it},
+                label={Text("Email address")},
                 leadingIcon={Icon(Icons.Default.Email,null)},
-                singleLine=true,modifier=Modifier.fillMaxWidth()
+                singleLine=true,
+                modifier=Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                Checkbox(checked=cloudSync,onCheckedChange={cloudSync=it})
-                Text("Enable RSS Cloud backup across my devices",fontSize=13.sp)
+
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment=Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked=termsAccepted,
+                    onCheckedChange={termsAccepted=it}
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "I agree to the RSS Core Terms & Conditions and Privacy Policy.",
+                    fontSize=12.sp,
+                    color=MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                Checkbox(checked=termsAccepted,onCheckedChange={termsAccepted=it})
-                Text("I agree to the RSS Core Terms & Conditions and Privacy Policy.",fontSize=13.sp)
-            }
+
             Spacer(Modifier.height(10.dp))
             Button(
-                enabled=!busy && termsAccepted &&
-                    name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),
+                enabled=!busy &&
+                    termsAccepted &&
+                    name.isNotBlank() &&
+                    Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches(),
                 onClick={
                     busy=true
                     getSharedPreferences(PREFS,MODE_PRIVATE).edit()
-                        .putBoolean("cloud_sync_enabled",cloudSync)
+                        .putBoolean("cloud_sync_enabled",true)
                         .putBoolean("terms_accepted",true)
                         .apply()
-                    done(name,email)
+                    done(name.trim(),email.trim())
                 },
                 modifier=Modifier.fillMaxWidth()
-            ){
-                Text(if(busy)"Connecting to RSS Core…" else "Create account")
+            ) {
+                Text(if(busy) "Creating account…" else "Create account")
             }
-            if(error.isNotBlank()) Text(error,color=MaterialTheme.colorScheme.error,fontSize=13.sp)
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "Email verification is required. You can enter the app while verification is pending.",
-                fontSize=12.sp,
-                color=MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+            if(error.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    friendlyRegistrationError(error),
+                    color=MaterialTheme.colorScheme.error,
+                    fontSize=13.sp
+                )
+            }
+        }
+    }
+
+    private fun friendlyRegistrationError(raw:String):String {
+        val lower=raw.lowercase(Locale.US)
+        return when {
+            lower.contains("terms") && lower.contains("privacy") ->
+                "Please accept the Terms & Conditions and Privacy Policy."
+            lower.contains("email verification service") ->
+                "Email verification is temporarily unavailable. Please try again shortly."
+            lower.contains("project is not registered") ->
+                "RSS Clipboard is not currently enabled in RSS Core."
+            lower.contains("invalid email") ->
+                "Enter a valid email address."
+            lower.contains("customer registration failed") ->
+                "RSS account creation failed. Please try again."
+            lower.contains("connect") || lower.contains("timeout") ->
+                "Could not connect to RSS Core. Please check your internet connection."
+            else ->
+                "Registration could not be completed. Please try again."
         }
     }
 
@@ -352,18 +402,66 @@ class ClipboardActivity : ComponentActivity() {
     @Composable private fun FeaturesScreen(next:()->Unit) {
         var page by remember{mutableStateOf(0)}
         val fs=listOf(
-            UiPage("Capture automatically","Clipboard capture stays in the foreground service even after the app UI is closed, subject to Android/device policy.",Icons.Default.ContentCopy),
-            UiPage("Organize instantly","Keep a 24-hour history, classify URLs and email addresses, and save items into named lists.",Icons.Default.Folder),
-            UiPage("Sync across devices","RSS Core provides account-scoped cloud backup for RSS Clipboard when network access is available.",Icons.Default.CloudSync),
-            UiPage("Your settings","Use Light, Dark or System theme and access RSS information, privacy, terms and contact pages.",Icons.Default.Settings)
+            UiPage("Capture automatically","Keep copied information ready with RSS Clipboard.",Icons.Default.ContentCopy),
+            UiPage("Organize instantly","Classify, search and save useful clipboard items.",Icons.Default.Folder),
+            UiPage("Sync across devices","Keep your RSS Clipboard data available across signed-in devices.",Icons.Default.CloudSync),
+            UiPage("Your settings","Choose Light, Dark or System appearance and manage your RSS account.",Icons.Default.Settings)
         )
+
+        LaunchedEffect(page) {
+            if(page < fs.lastIndex) {
+                delay(1700)
+                page++
+            } else {
+                delay(1400)
+                next()
+            }
+        }
+
         val f=fs[page]
-        Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
-            AnimatedContent(page,label="feature"){ Icon(f.icon,null,Modifier.size(76.dp),tint=MaterialTheme.colorScheme.primary) }
-            Spacer(Modifier.height(22.dp));AnimatedContent(page,label="title"){Text(f.title,fontSize=28.sp,fontWeight=FontWeight.Bold)}
-            Spacer(Modifier.height(10.dp));Text(f.body,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(24.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){fs.indices.forEach{i->Box(Modifier.size(if(i==page)10.dp else 7.dp).clip(CircleShape).background(if(i==page)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant))}}
-            Spacer(Modifier.height(28.dp));Button({if(page<fs.lastIndex)page++ else next()},Modifier.fillMaxWidth()){Text(if(page<fs.lastIndex)"Next" else "Open RSS Clipboard")}
+        Column(
+            Modifier.fillMaxSize().padding(28.dp),
+            horizontalAlignment=Alignment.CenterHorizontally,
+            verticalArrangement=Arrangement.Center
+        ){
+            AnimatedContent(page,label="feature"){
+                Icon(
+                    f.icon,
+                    null,
+                    Modifier.size(76.dp),
+                    tint=MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(Modifier.height(22.dp))
+            AnimatedContent(page,label="title"){
+                Text(f.title,fontSize=28.sp,fontWeight=FontWeight.Bold)
+            }
+            Spacer(Modifier.height(10.dp))
+            AnimatedContent(page,label="body"){
+                Text(f.body,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.height(24.dp))
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                fs.indices.forEach{i->
+                    Box(
+                        Modifier
+                            .size(if(i==page)10.dp else 7.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if(i==page)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.outlineVariant
+                            )
+                    )
+                }
+            }
+            Spacer(Modifier.height(22.dp))
+            Text(
+                "Getting things ready…",
+                fontSize=12.sp,
+                color=MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 
