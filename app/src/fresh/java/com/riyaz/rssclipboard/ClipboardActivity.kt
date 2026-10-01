@@ -150,14 +150,32 @@ class ClipboardActivity : ComponentActivity() {
                 val result=CoreClient.post("/v1/license/register",JSONObject().put("email",e).put("display_name",n).put("project_key",APP_ID).put("device_id",deviceId()))
                 val key=result.optString("app_key")
                 if(key.isBlank()) throw IllegalStateException("RSS Core did not return an app key.")
-                val expires=if(result.optBoolean("verification_required",false)) System.currentTimeMillis()+DAY else 0L
-                val a0=Account(n,e,key,!result.optBoolean("verification_required",false),if(expires>0)expires else null)
-                val verification=if(!a0.verified) try { CoreClient.get("/api/v1/license/verification-status?email="+java.net.URLEncoder.encode(e,"UTF-8")+"&project_key="+APP_ID) } catch (_:Exception) { JSONObject() } else JSONObject()
-                val serverExpires=verification.optLong("verification_expires_at",0L)
-                val a=if(serverExpires>0) a0.copy(expiresAt=serverExpires) else a0
-                getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("verified",a.verified).apply()
+                val verificationRequired=result.optBoolean("verification_required",false)
+                val expires=if(verificationRequired) System.currentTimeMillis()+DAY else 0L
+                val a=Account(n,e,key,!verificationRequired,if(expires>0)expires else null)
+                getSharedPreferences(PREFS,MODE_PRIVATE).edit()
+                    .putBoolean("verified",a.verified)
+                    .putLong("verification_expires",a.expiresAt ?: 0L)
+                    .apply()
+
+                // Complete registration immediately after RSS Core returns the app key.
+                // Verification polling and cloud sync never delay the registration screen.
                 onSuccess(a)
-                syncNow(a)
+
+                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                    if (verificationRequired) {
+                        try {
+                            val verification=CoreClient.get("/api/v1/license/verification-status?email="+java.net.URLEncoder.encode(e,"UTF-8")+"&project_key="+APP_ID)
+                            val verified=verification.optBoolean("email_verified",false)
+                            val serverExpires=verification.optLong("verification_expires_at",0L)
+                            getSharedPreferences(PREFS,MODE_PRIVATE).edit()
+                                .putBoolean("verified",verified)
+                                .putLong("verification_expires",serverExpires)
+                                .apply()
+                        } catch (_:Exception) {}
+                    }
+                    syncNow(a)
+                }
             } catch (t:Throwable) {
                 withContext(Dispatchers.Main) { onError(t.message?.takeIf { it.isNotBlank() }?.let { "RSS Core error: $it" } ?: "Could not connect to RSS Core. Check your internet connection and try again.") }
             }
