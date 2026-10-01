@@ -114,7 +114,7 @@ class ClipboardActivity : ComponentActivity() {
         MaterialTheme(colorScheme=scheme) {
             SideEffect { window.statusBarColor=scheme.background.toArgb(); window.navigationBarColor=scheme.background.toArgb() }
             when(stage) {
-                "register" -> RegisterScreen { name,email -> register(name,email,
+                "register" -> RegisterScreen(registerError) { name,email -> register(name,email,
                     onSuccess={ a -> account=a; registered=true; prefs.edit().putBoolean("registered",true).putString("name",a.name).putString("email",a.email).putString("app_key",a.appKey).putLong("verification_expires",a.expiresAt ?: 0L).apply(); stage="welcome" },
                     onError={ registerError=it }
                 ) }
@@ -215,14 +215,14 @@ class ClipboardActivity : ComponentActivity() {
 
     @Composable private fun Logo(modifier:Modifier=Modifier) = Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",modifier,contentScale=ContentScale.Fit)
 
-    @Composable private fun RegisterScreen(done:(String,String)->Unit) {
+    @Composable private fun RegisterScreen(error:String,done:(String,String)->Unit) {
         var name by remember{mutableStateOf("")}; var email by remember{mutableStateOf("")}; var cloudSync by remember{mutableStateOf(true)}; var busy by remember{mutableStateOf(false)}
         Box(Modifier.fillMaxSize()) { AnimatedBackground(); Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
             Logo(Modifier.size(120.dp)); Spacer(Modifier.height(18.dp)); Text("Create your RSS account",fontSize=28.sp,fontWeight=FontWeight.Bold); Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp)); OutlinedTextField(name,{name=it},label={Text("Full name")},leadingIcon={Icon(Icons.Default.Person,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp)); OutlinedTextField(email,{email=it},label={Text("Email address")},leadingIcon={Icon(Icons.Default.Email,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Checkbox(checked=cloudSync,onCheckedChange={cloudSync=it});Text("Enable RSS Cloud backup across my devices",fontSize=13.sp)}; Spacer(Modifier.height(10.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;registerError="";getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("cloud_sync_enabled",cloudSync).apply();done(name,email)},modifier=Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
-            if(registerError.isNotBlank()) Text(registerError,color=MaterialTheme.colorScheme.error,fontSize=13.sp)
+            Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Checkbox(checked=cloudSync,onCheckedChange={cloudSync=it});Text("Enable RSS Cloud backup across my devices",fontSize=13.sp)}; Spacer(Modifier.height(10.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("cloud_sync_enabled",cloudSync).apply();done(name,email)},modifier=Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
+            if(error.isNotBlank()) Text(error,color=MaterialTheme.colorScheme.error,fontSize=13.sp)
             Spacer(Modifier.height(10.dp)); Text("Email verification is required. You can enter the app while verification is pending.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }}
     }
