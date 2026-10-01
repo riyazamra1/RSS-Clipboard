@@ -11,4 +11,6 @@ Requirements:
 - Cloud backup and RSS KIT account/cloud/multi-device standard.
 - App assets: rss_clipboard_logo.png and rss_clipboard_splash_logo.png; no splash logo zoom/distortion.
 - Follow RSS KIT UI and branding rules; this is not permission to copy another app's UI.
+- Onboarding order: splash screen -> app features animation flow -> registration -> welcome -> main app.
+- Registration must submit RSS Core's required Terms & Conditions and Privacy Policy acceptance.
 - Build/test before completion.
