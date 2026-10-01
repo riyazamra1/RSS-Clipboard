@@ -94,7 +94,14 @@ class ClipboardActivity : ComponentActivity() {
         val prefs=getSharedPreferences(PREFS,MODE_PRIVATE)
         var theme by remember { mutableStateOf(prefs.getString("theme","system") ?: "system") }
         var registered by remember { mutableStateOf(prefs.getBoolean("registered",false) && !prefs.getString("app_key",null).isNullOrBlank()) }
-        var stage by remember { mutableStateOf(if(registered) "main" else "register") }
+        var stage by remember { mutableStateOf(if(registered) "main" else "splash") }
+
+        LaunchedEffect(stage, registered) {
+            if (stage == "splash") {
+                delay(900)
+                stage = if (registered) "main" else "features"
+            }
+        }
         var drawer by remember { mutableStateOf(false) }
         var selectedPage by remember { mutableStateOf("home") }
         var account by remember { mutableStateOf(loadAccount()) }
@@ -114,12 +121,26 @@ class ClipboardActivity : ComponentActivity() {
         MaterialTheme(colorScheme=scheme) {
             SideEffect { window.statusBarColor=scheme.background.toArgb(); window.navigationBarColor=scheme.background.toArgb() }
             when(stage) {
-                "register" -> RegisterScreen(registerError) { name,email -> register(name,email,
-                    onSuccess={ a -> account=a; registered=true; prefs.edit().putBoolean("registered",true).putString("name",a.name).putString("email",a.email).putString("app_key",a.appKey).putLong("verification_expires",a.expiresAt ?: 0L).apply(); stage="welcome" },
-                    onError={ registerError=it }
-                ) }
-                "welcome" -> WelcomeScreen(account?.name ?: "there") { stage="features" }
-                "features" -> FeaturesScreen { stage="main" }
+                "splash" -> SplashScreen()
+                "features" -> FeaturesScreen { stage="register" }
+                "register" -> RegisterScreen(registerError) { name,email ->
+                    register(name,email,
+                        onSuccess={ a ->
+                            account=a
+                            registered=true
+                            prefs.edit()
+                                .putBoolean("registered",true)
+                                .putString("name",a.name)
+                                .putString("email",a.email)
+                                .putString("app_key",a.appKey)
+                                .putLong("verification_expires",a.expiresAt ?: 0L)
+                                .apply()
+                            stage="welcome"
+                        },
+                        onError={ registerError=it }
+                    )
+                }
+                "welcome" -> WelcomeScreen(account?.name ?: "there") { stage="main" }
                 "main" -> MainScreen(account, onAccountUpdate={account=it}, onMenu={drawer=true}, onRefresh={})
                 "settings" -> SettingsScreen(theme, {theme=it;prefs.edit().putString("theme",it).apply()}, account, onBack={stage="main"})
                 "about" -> StaticScreen(UiPage("About RSS Clipboard","RSS Clipboard is a lightweight clipboard organizer by Razeen Secure Solution.",Icons.Default.Info),{stage="main"})
@@ -147,7 +168,15 @@ class ClipboardActivity : ComponentActivity() {
         if(n.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(e).matches()) { onError("Enter a valid name and email address."); return }
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.Main) {
             try {
-                val result=CoreClient.post("/v1/license/register",JSONObject().put("email",e).put("display_name",n).put("project_key",APP_ID).put("device_id",deviceId()))
+                val result=CoreClient.post(
+                    "/v1/license/register",
+                    JSONObject()
+                        .put("email",e)
+                        .put("display_name",n)
+                        .put("project_key",APP_ID)
+                        .put("device_id",deviceId())
+                        .put("terms_accepted",true)
+                )
                 val key=result.optString("app_key")
                 if(key.isBlank()) throw IllegalStateException("RSS Core did not return an app key.")
                 val verificationRequired=result.optBoolean("verification_required",false)
@@ -222,30 +251,103 @@ class ClipboardActivity : ComponentActivity() {
         ed.putStringSet("clip_lists",names).apply()
     }
 
-    @Composable private fun AnimatedBackground() {
-        val infinite=rememberInfiniteTransition(label="bg")
-        val x by infinite.animateFloat(0f,1f,infiniteRepeatable(tween(7000,easing=LinearEasing),RepeatMode.Reverse),label="x")
-        Box(Modifier.fillMaxSize()) {
-            Box(Modifier.size(220.dp).offset(x.dp*80f,(-40).dp).alpha(.08f).background(MaterialTheme.colorScheme.primary,CircleShape))
-            Box(Modifier.size(180.dp).align(Alignment.BottomEnd).offset((-30).dp,x.dp*60f).alpha(.06f).background(MaterialTheme.colorScheme.secondary,CircleShape))
+    @Composable private fun Logo(modifier:Modifier=Modifier) = Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",modifier,contentScale=ContentScale.Fit)
+
+    @Composable private fun SplashScreen() {
+        val alpha by animateFloatAsState(
+            targetValue = 1f,
+            animationSpec = tween(450),
+            label = "splashAlpha"
+        )
+        Box(
+            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(R.drawable.rss_clipboard_splash_logo),
+                contentDescription = "RSS Clipboard",
+                modifier = Modifier.size(220.dp).alpha(alpha),
+                contentScale = ContentScale.Fit
+            )
         }
     }
 
-    @Composable private fun Logo(modifier:Modifier=Modifier) = Image(painterResource(R.drawable.rss_clipboard_logo),"RSS Clipboard",modifier,contentScale=ContentScale.Fit)
-
     @Composable private fun RegisterScreen(error:String,done:(String,String)->Unit) {
-        var name by remember{mutableStateOf("")}; var email by remember{mutableStateOf("")}; var cloudSync by remember{mutableStateOf(true)}; var busy by remember{mutableStateOf(false)}
-        Box(Modifier.fillMaxSize()) { AnimatedBackground(); Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
-            Logo(Modifier.size(120.dp)); Spacer(Modifier.height(18.dp)); Text("Create your RSS account",fontSize=28.sp,fontWeight=FontWeight.Bold); Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(24.dp)); OutlinedTextField(name,{name=it},label={Text("Full name")},leadingIcon={Icon(Icons.Default.Person,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
-            Spacer(Modifier.height(12.dp)); OutlinedTextField(email,{email=it},label={Text("Email address")},leadingIcon={Icon(Icons.Default.Email,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Checkbox(checked=cloudSync,onCheckedChange={cloudSync=it});Text("Enable RSS Cloud backup across my devices",fontSize=13.sp)}; Spacer(Modifier.height(10.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("cloud_sync_enabled",cloudSync).apply();done(name,email)},modifier=Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
+        var name by remember{mutableStateOf("")}
+        var email by remember{mutableStateOf("")}
+        var cloudSync by remember{mutableStateOf(true)}
+        var termsAccepted by remember{mutableStateOf(false)}
+        var busy by remember{mutableStateOf(false)}
+
+        Column(
+            Modifier.fillMaxSize().padding(28.dp),
+            horizontalAlignment=Alignment.CenterHorizontally,
+            verticalArrangement=Arrangement.Center
+        ) {
+            Logo(Modifier.size(120.dp))
+            Spacer(Modifier.height(18.dp))
+            Text("Create your RSS account",fontSize=28.sp,fontWeight=FontWeight.Bold)
+            Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(24.dp))
+            OutlinedTextField(
+                name,{name=it},label={Text("Full name")},
+                leadingIcon={Icon(Icons.Default.Person,null)},
+                singleLine=true,modifier=Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                email,{email=it},label={Text("Email address")},
+                leadingIcon={Icon(Icons.Default.Email,null)},
+                singleLine=true,modifier=Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                Checkbox(checked=cloudSync,onCheckedChange={cloudSync=it})
+                Text("Enable RSS Cloud backup across my devices",fontSize=13.sp)
+            }
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                Checkbox(checked=termsAccepted,onCheckedChange={termsAccepted=it})
+                Text("I agree to the RSS Core Terms & Conditions and Privacy Policy.",fontSize=13.sp)
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                enabled=!busy && termsAccepted &&
+                    name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),
+                onClick={
+                    busy=true
+                    getSharedPreferences(PREFS,MODE_PRIVATE).edit()
+                        .putBoolean("cloud_sync_enabled",cloudSync)
+                        .putBoolean("terms_accepted",true)
+                        .apply()
+                    done(name,email)
+                },
+                modifier=Modifier.fillMaxWidth()
+            ){
+                Text(if(busy)"Connecting to RSS Core…" else "Create account")
+            }
             if(error.isNotBlank()) Text(error,color=MaterialTheme.colorScheme.error,fontSize=13.sp)
-            Spacer(Modifier.height(10.dp)); Text("Email verification is required. You can enter the app while verification is pending.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        }}
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Email verification is required. You can enter the app while verification is pending.",
+                fontSize=12.sp,
+                color=MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 
-    @Composable private fun WelcomeScreen(name:String,next:()->Unit) { Box(Modifier.fillMaxSize()){AnimatedBackground();Column(Modifier.fillMaxSize().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){Logo(Modifier.size(140.dp));Text("Welcome, $name",fontSize=30.sp,fontWeight=FontWeight.Bold);Text("Your clipboard, organized and ready.",color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(24.dp));Button(onClick=next){Text("Continue")}}}}
+    @Composable private fun WelcomeScreen(name:String,next:()->Unit) {
+        Column(
+            Modifier.fillMaxSize().padding(28.dp),
+            horizontalAlignment=Alignment.CenterHorizontally,
+            verticalArrangement=Arrangement.Center
+        ) {
+            Logo(Modifier.size(140.dp))
+            Text("Welcome, $name",fontSize=30.sp,fontWeight=FontWeight.Bold)
+            Text("Your clipboard, organized and ready.",color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(24.dp))
+            Button(onClick=next){Text("Continue")}
+        }
+    }
 
     @Composable private fun FeaturesScreen(next:()->Unit) {
         var page by remember{mutableStateOf(0)}
