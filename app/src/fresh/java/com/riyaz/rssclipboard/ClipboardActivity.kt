@@ -68,6 +68,7 @@ class ClipboardActivity : ComponentActivity() {
                 if (intent?.action == "com.riyaz.rssclipboard.CLIPBOARD_UPDATED") sendRefresh()
             }
         }
+        setTheme(R.style.Theme_RSSClipboard)
         setContent { App() }
     }
 
@@ -97,6 +98,7 @@ class ClipboardActivity : ComponentActivity() {
         var drawer by remember { mutableStateOf(false) }
         var selectedPage by remember { mutableStateOf("home") }
         var account by remember { mutableStateOf(loadAccount()) }
+        var registerError by remember { mutableStateOf("") }
 
         val dark = when(theme) {
             "dark" -> true
@@ -112,10 +114,10 @@ class ClipboardActivity : ComponentActivity() {
         MaterialTheme(colorScheme=scheme) {
             SideEffect { window.statusBarColor=scheme.background.toArgb(); window.navigationBarColor=scheme.background.toArgb() }
             when(stage) {
-                "register" -> RegisterScreen { name,email -> register(name,email) { a ->
-                    account=a; registered=true; prefs.edit().putBoolean("registered",true).putString("name",a.name).putString("email",a.email).putString("app_key",a.appKey).putLong("verification_expires",a.expiresAt ?: 0L).apply()
-                    stage="welcome"
-                } }
+                "register" -> RegisterScreen { name,email -> register(name,email,
+                    onSuccess={ a -> account=a; registered=true; prefs.edit().putBoolean("registered",true).putString("name",a.name).putString("email",a.email).putString("app_key",a.appKey).putLong("verification_expires",a.expiresAt ?: 0L).apply(); stage="welcome" },
+                    onError={ registerError=it }
+                ) }
                 "welcome" -> WelcomeScreen(account?.name ?: "there") { stage="features" }
                 "features" -> FeaturesScreen { stage="main" }
                 "main" -> MainScreen(account, onAccountUpdate={account=it}, onMenu={drawer=true}, onRefresh={})
@@ -140,14 +142,14 @@ class ClipboardActivity : ComponentActivity() {
         return Account(p.getString("name","") ?: "",email,key,p.getBoolean("verified",false),p.getLong("verification_expires",0L).takeIf{it>0})
     }
 
-    private fun register(name:String,email:String,onSuccess:(Account)->Unit) {
+    private fun register(name:String,email:String,onSuccess:(Account)->Unit,onError:(String)->Unit) {
         val n=name.trim(); val e=email.trim().lowercase(Locale.US)
-        if(n.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(e).matches()) return
+        if(n.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(e).matches()) { onError("Enter a valid name and email address."); return }
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.Main) {
             try {
                 val result=CoreClient.post("/v1/license/register",JSONObject().put("email",e).put("display_name",n).put("project_key",APP_ID).put("device_id",deviceId()))
                 val key=result.optString("app_key")
-                if(key.isBlank()) return@launch
+                if(key.isBlank()) throw IllegalStateException("RSS Core did not return an app key.")
                 val expires=if(result.optBoolean("verification_required",false)) System.currentTimeMillis()+DAY else 0L
                 val a0=Account(n,e,key,!result.optBoolean("verification_required",false),if(expires>0)expires else null)
                 val verification=if(!a0.verified) try { CoreClient.get("/api/v1/license/verification-status?email="+java.net.URLEncoder.encode(e,"UTF-8")+"&project_key="+APP_ID) } catch (_:Exception) { JSONObject() } else JSONObject()
@@ -156,7 +158,9 @@ class ClipboardActivity : ComponentActivity() {
                 getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("verified",a.verified).apply()
                 onSuccess(a)
                 syncNow(a)
-            } catch (_:Exception) {}
+            } catch (t:Throwable) {
+                withContext(Dispatchers.Main) { onError(t.message?.takeIf { it.isNotBlank() }?.let { "RSS Core error: $it" } ?: "Could not connect to RSS Core. Check your internet connection and try again.") }
+            }
         }
     }
 
@@ -217,7 +221,8 @@ class ClipboardActivity : ComponentActivity() {
             Logo(Modifier.size(120.dp)); Spacer(Modifier.height(18.dp)); Text("Create your RSS account",fontSize=28.sp,fontWeight=FontWeight.Bold); Text("One RSS account for your app and devices.",color=MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp)); OutlinedTextField(name,{name=it},label={Text("Full name")},leadingIcon={Icon(Icons.Default.Person,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp)); OutlinedTextField(email,{email=it},label={Text("Email address")},leadingIcon={Icon(Icons.Default.Email,null)},singleLine=true,modifier=Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Checkbox(checked=cloudSync,onCheckedChange={cloudSync=it});Text("Enable RSS Cloud backup across my devices",fontSize=13.sp)}; Spacer(Modifier.height(10.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("cloud_sync_enabled",cloudSync).apply();done(name,email)},modifier=Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
+            Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Checkbox(checked=cloudSync,onCheckedChange={cloudSync=it});Text("Enable RSS Cloud backup across my devices",fontSize=13.sp)}; Spacer(Modifier.height(10.dp)); Button(enabled=!busy && name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches(),onClick={busy=true;registerError="";getSharedPreferences(PREFS,MODE_PRIVATE).edit().putBoolean("cloud_sync_enabled",cloudSync).apply();done(name,email)},modifier=Modifier.fillMaxWidth()){Text(if(busy)"Connecting to RSS Core…" else "Create account")}
+            if(registerError.isNotBlank()) Text(registerError,color=MaterialTheme.colorScheme.error,fontSize=13.sp)
             Spacer(Modifier.height(10.dp)); Text("Email verification is required. You can enter the app while verification is pending.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }}
     }
